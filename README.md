@@ -92,6 +92,23 @@ Package the engine as a library for direct hardware-accelerated execution on mob
 
 ---
 
+## Hardware Optimization
+
+This engine is optimized for GPU execution using the WGPU backend. Depending on your specific hardware, you may need to adjust the training intensity:
+
+### GPU VRAM Management
+If you encounter **Out-of-Memory (OOM)** errors during training, you should reduce the **Batch Size**.
+
+- **Where to change**: Open `src/main.rs` and modify the `batch_size` parameter.
+- **Recommendations**:
+  - **4GB VRAM**: Batch Size 1 (Safe default)
+  - **8GB VRAM**: Batch Size 4
+  - **12GB+ VRAM**: Batch Size 8
+  - **RTX 5080 High-End**: Batch Size 16 (Optimal for ultra-fast convergence)
+- **Impact**: Larger batch sizes provide more stable gradients but require exponentially more VRAM.
+
+---
+
 ## Technical Status and Contributing
 
 > [!IMPORTANT]
