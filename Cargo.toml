@@ -1,0 +1,15 @@
+[package]
+name = "rust_auto_score_engine"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+burn = { version = "0.16.0", features = ["train", "wgpu"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+image = "0.25"
+ndarray = "0.16"
+axum = { version = "0.7", features = ["multipart"] }
+tower-http = { version = "0.5", features = ["fs", "cors"] }
+tokio = { version = "1.0", features = ["full"] }
+base64 = "0.22"

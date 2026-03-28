@@ -1,0 +1,27 @@
+# Rust
+target/
+debug/
+release/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Data & Model Weights
+model_weights.bin
+model_weights/
+dataset/images/
+dataset/cropped_images/
+dataset/800/
+dataset/__pycache__/
+
+# Logs & Temp
+*.log
+logs/
+tmp/
+temp/
+*.tmp

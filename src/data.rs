@@ -1,0 +1,118 @@
+use burn::prelude::*;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::fs::File;
+use std::io::BufReader;
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct Annotation {
+    pub img_folder: String,
+    pub img_name: String,
+    pub bbox: Vec<i32>,
+    pub xy: Vec<Vec<f32>>,
+}
+
+pub struct DartDataset {
+    pub annotations: Vec<Annotation>,
+    pub base_path: String,
+}
+
+impl DartDataset {
+    pub fn load(json_path: &str, base_path: &str) -> Self {
+        let file = File::open(json_path).expect("Labels JSON not found");
+        let reader = BufReader::new(file);
+        let raw_data: HashMap<String, Annotation> = serde_json::from_reader(reader).expect("JSON parse error");
+        
+        let mut annotations: Vec<Annotation> = raw_data.into_values().collect();
+        annotations.sort_by(|a, b| a.img_name.cmp(&b.img_name));
+
+        Self {
+            annotations,
+            base_path: base_path.to_string(),
+        }
+    }
+}
+
+impl burn::data::dataset::Dataset<Annotation> for DartDataset {
+    fn get(&self, index: usize) -> Option<Annotation> {
+        self.annotations.get(index).cloned()
+    }
+
+    fn len(&self) -> usize {
+        self.annotations.len()
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct DartBatch<B: Backend> {
+    pub images: Tensor<B, 4>,
+    pub targets: Tensor<B, 4>,
+}
+
+#[derive(Clone, Debug)]
+pub struct DartBatcher<B: Backend> {
+    device: Device<B>,
+}
+
+use burn::data::dataloader::batcher::Batcher;
+
+impl<B: Backend> Batcher<Annotation, DartBatch<B>> for DartBatcher<B> {
+    fn batch(&self, items: Vec<Annotation>) -> DartBatch<B> {
+        self.batch_manual(items)
+    }
+}
+
+impl<B: Backend> DartBatcher<B> {
+    pub fn new(device: Device<B>) -> Self {
+        Self { device }
+    }
+
+    pub fn batch_manual(&self, items: Vec<Annotation>) -> DartBatch<B> {
+        let batch_size = items.len();
+        let input_res: usize = 416; // Standard YOLO 416 resolution for GPU stability
+        let grid_size: usize = 26;  // 416 / 16 (stride accumulation) = 26
+        let num_channels: usize = 30; // 3 anchors * (x,y,w,h,obj,p0...p4)
+        
+        let mut images_list = Vec::with_capacity(batch_size);
+        let mut target_raw = vec![0.0f32; batch_size * num_channels * grid_size * grid_size];
+
+        for (b_idx, item) in items.iter().enumerate() {
+            // 1. Process Image
+            let path = format!("dataset/800/{}/{}", item.img_folder, item.img_name);
+            let img = image::open(&path).unwrap_or_else(|_| image::DynamicImage::new_rgb8(input_res as u32, input_res as u32));
+            let resized = img.resize_exact(input_res as u32, input_res as u32, image::imageops::FilterType::Triangle);
+            let pixels: Vec<f32> = resized.to_rgb8().pixels()
+                .flat_map(|p| vec![p[0] as f32 / 255.0, p[1] as f32 / 255.0, p[2] as f32 / 255.0])
+                .collect();
+            images_list.push(TensorData::new(pixels, [input_res, input_res, 3]));
+
+            for (i, p) in item.xy.iter().enumerate() {
+                let gx = (p[0] * grid_size as f32).floor().clamp(0.0, (grid_size - 1) as f32) as usize;
+                let gy = (p[1] * grid_size as f32).floor().clamp(0.0, (grid_size - 1) as f32) as usize;
+
+                let cls = if i < 4 { i + 1 } else { 0 };
+                let base_idx = (b_idx * num_channels * grid_size * grid_size) + (gy * grid_size) + gx;
+
+                // TF order: [x,y,w,h,obj,p0..p4]
+                target_raw[base_idx + 0 * grid_size * grid_size] = p[0];    // X
+                target_raw[base_idx + 1 * grid_size * grid_size] = p[1];    // Y
+                target_raw[base_idx + 2 * grid_size * grid_size] = 0.05;    // W
+                target_raw[base_idx + 3 * grid_size * grid_size] = 0.05;    // H
+                target_raw[base_idx + 4 * grid_size * grid_size] = 1.0;     // Objectness (conf)
+                target_raw[base_idx + (5 + cls) * grid_size * grid_size] = 1.0; // Class prob
+            }
+        }
+
+        let images = Tensor::stack(
+            images_list.into_iter().map(|d| Tensor::<B, 3>::from_data(d, &self.device)).collect(),
+            0
+        ).permute([0, 3, 1, 2]);
+
+        let targets = Tensor::from_data(
+            TensorData::new(target_raw, [batch_size, num_channels, grid_size, grid_size]),
+            &self.device
+        );
+
+        DartBatch { images, targets }
+    }
+}

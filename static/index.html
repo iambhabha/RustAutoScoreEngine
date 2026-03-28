@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DartVision AI - Smart Scoring Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #00ff88;
+            --secondary: #00d4ff;
+            --accent: #ff4d4d;
+            --bg: #0a0e14;
+            --card-bg: rgba(255, 255, 255, 0.05);
+            --glass-border: rgba(255, 255, 255, 0.1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        body {
+            background: var(--bg);
+            color: #fff;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            overflow-x: hidden;
+        }
+
+        .bg-glow {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: radial-gradient(circle at 50% 50%, #00ff8811 0%, transparent 50%),
+                        radial-gradient(circle at 80% 20%, #00d4ff11 0%, transparent 40%);
+            z-index: -1;
+            pointer-events: none;
+        }
+
+        header {
+            padding: 2rem;
+            text-align: center;
+        }
+
+        h1 {
+            font-size: 3.5rem;
+            font-weight: 800;
+            background: linear-gradient(to right, var(--primary), var(--secondary));
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0.5rem;
+            letter-spacing: -1px;
+        }
+
+        p.subtitle {
+            color: #8892b0;
+            font-size: 1.1rem;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+
+        main {
+            width: 90%;
+            max-width: 1200px;
+            display: grid;
+            grid-template-columns: 1fr 380px;
+            gap: 2rem;
+            padding: 2rem 0;
+        }
+
+        .visual-area {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .upload-container {
+            background: var(--card-bg);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            border-radius: 24px;
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.4s;
+            min-height: 600px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .upload-container:hover, .upload-container.drag-over {
+            border-color: var(--primary);
+            box-shadow: 0 0 40px rgba(0, 255, 136, 0.1);
+        }
+
+        .preview-wrapper {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            display: none;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #preview-img {
+            max-width: 100%;
+            max-height: 550px;
+            border-radius: 12px;
+            display: block;
+            object-fit: contain;
+        }
+
+        #overlay-svg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+
+        .upload-icon { font-size: 4rem; margin-bottom: 1rem; }
+        .upload-text { font-size: 1.5rem; color: #ccd6f6; }
+        .upload-subtext { color: #8892b0; margin-top: 1rem; }
+
+        .stats-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .stat-card {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--glass-border);
+            border-radius: 20px;
+            padding: 1.5rem;
+        }
+
+        .stat-label { color: #8892b0; font-size: 0.9rem; margin-bottom: 0.5rem; text-transform: uppercase; }
+        .stat-value { font-size: 2rem; font-weight: 600; }
+        .conf-bar { height: 8px; background: rgba(255,255,255,0.1); border-radius: 4px; margin-top: 1rem; overflow: hidden; }
+        .conf-fill { height: 100%; width: 0%; background: linear-gradient(to right, var(--primary), var(--secondary)); transition: 1s; }
+
+        .loading-spinner {
+            width: 40px; height: 40px;
+            border: 3px solid rgba(0, 255, 136, 0.1);
+            border-top: 3px solid var(--primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            display: none;
+            position: absolute;
+        }
+
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+
+        .keypoint-marker {
+            fill: var(--primary);
+            stroke: #fff;
+            stroke-width: 2px;
+            filter: drop-shadow(0 0 5px var(--primary));
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% { r: 5; opacity: 1; }
+            50% { r: 8; opacity: 0.7; }
+            100% { r: 5; opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+    <div class="bg-glow"></div>
+    <header>
+        <h1>DARTVISION <span style="font-weight: 300; opacity: 0.5;">AI</span></h1>
+        <p class="subtitle">Intelligent Labelling & Scoring Dashboard</p>
+    </header>
+
+    <main>
+        <section class="visual-area">
+            <div class="upload-container" id="drop-zone">
+                <div id="initial-state">
+                    <div class="upload-icon">🎯</div>
+                    <div class="upload-text">Drag & Drop Image</div>
+                    <div class="upload-subtext">calibration and scoring results will appear here</div>
+                </div>
+                <div class="preview-wrapper" id="preview-wrapper">
+                    <img id="preview-img">
+                    <svg id="overlay-svg"></svg>
+                </div>
+                <div class="loading-spinner" id="spinner"></div>
+            </div>
+            <input type="file" id="file-input" style="display: none;" accept="image/*">
+        </section>
+
+        <aside class="stats-panel">
+            <div class="stat-card">
+                <div class="stat-label">Model Status</div>
+                <div class="stat-value" id="status-text" style="font-size: 1.2rem; color: var(--primary);">System Ready</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">AI Confidence</div>
+                <div class="stat-value" id="conf-val">0.0%</div>
+                <div class="conf-bar"><div class="conf-fill" id="conf-fill"></div></div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Detection Result</div>
+                <div class="stat-value" id="result-text" style="font-size: 1.1rem; opacity: 0.8;">No Image Uploaded</div>
+            </div>
+        </aside>
+    </main>
+
+    <script>
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('file-input');
+        const previewImg = document.getElementById('preview-img');
+        const previewWrapper = document.getElementById('preview-wrapper');
+        const initialState = document.getElementById('initial-state');
+        const svgOverlay = document.getElementById('overlay-svg');
+        const spinner = document.getElementById('spinner');
+
+        dropZone.onclick = () => fileInput.click();
+        fileInput.onchange = (e) => handleFile(e.target.files[0]);
+
+        dropZone.ondragover = (e) => { e.preventDefault(); dropZone.classList.add('drag-over'); };
+        dropZone.ondragleave = () => dropZone.classList.remove('drag-over');
+        dropZone.ondrop = (e) => { e.preventDefault(); dropZone.classList.remove('drag-over'); handleFile(e.dataTransfer.files[0]); };
+
+        async function handleFile(file) {
+            if (!file || !file.type.startsWith('image/')) return;
+            
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                previewImg.src = e.target.result;
+                previewWrapper.style.display = 'flex';
+                initialState.style.display = 'none';
+                clearKeypoints();
+            };
+            reader.readAsDataURL(file);
+
+            spinner.style.display = 'block';
+            const formData = new FormData();
+            formData.append('image', file);
+
+            try {
+                const response = await fetch('/api/predict', { method: 'POST', body: formData });
+                const data = await response.json();
+                spinner.style.display = 'none';
+                
+                if (data.status === 'success') {
+                    updateUI(data);
+                    drawKeypoints(data.keypoints);
+                }
+            } catch (err) {
+                spinner.style.display = 'none';
+                document.getElementById('status-text').innerText = 'Error';
+            }
+        }
+
+        function updateUI(data) {
+            const conf = (data.confidence * 100).toFixed(1);
+            document.getElementById('conf-val').innerText = `${conf}%`;
+            document.getElementById('conf-fill').style.width = `${conf}%`;
+            
+            let resultHtml = `<div style="margin-top: 1rem; font-size: 0.9rem; line-height: 1.5;">${data.message}</div>`;
+            if (data.keypoints && data.keypoints.length >= 8) {
+                const names = ["Cal 1", "Cal 2", "Cal 3", "Cal 4", "Dart"];
+                resultHtml += `<div style="font-size: 0.8rem; opacity: 0.6; margin-top: 5px;">Results & Mapping:</div>`;
+                for (let i = 0; i < data.keypoints.length; i += 2) {
+                    const classIdx = i / 2;
+                    const name = names[classIdx] || `Dart ${Math.floor(classIdx - 3)}`;
+                    const x = data.keypoints[i].toFixed(3);
+                    const y = data.keypoints[i+1].toFixed(3);
+                    
+                    // Get score label if it's a dart
+                    let scoreLabel = "";
+                    if (classIdx >= 4 && data.scores && data.scores[classIdx - 4]) {
+                        scoreLabel = ` <span style="background: #ff4d4d; color: white; padding: 2px 6px; border-radius: 4px; font-weight: 800; margin-left: 10px;">${data.scores[classIdx - 4]}</span>`;
+                    }
+
+                    resultHtml += `<div style="font-size: 0.85rem; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.05); display: flex; align-items: center; justify-content: space-between;">
+                        <span><span style="color: ${i < 8 ? '#00ff88' : '#ff4d4d'}">${name}</span>: [${x}, ${y}]</span>
+                        ${scoreLabel}
+                    </div>`;
+                }
+            }
+            document.getElementById('result-text').innerHTML = resultHtml;
+        }
+
+        function clearKeypoints() {
+            while (svgOverlay.firstChild) svgOverlay.removeChild(svgOverlay.firstChild);
+        }
+
+        function drawKeypoints(pts) {
+            clearKeypoints();
+            if (!pts || pts.length === 0) return;
+
+            // Wait for image to render to get actual display dimensions
+            setTimeout(() => {
+                const rect = previewImg.getBoundingClientRect();
+                const wrapperRect = previewWrapper.getBoundingClientRect();
+                
+                // Offset calculation relative to wrapper
+                const offsetX = rect.left - wrapperRect.left;
+                const offsetY = rect.top - wrapperRect.top;
+                const width = rect.width;
+                const height = rect.height;
+
+                const classNames = ["Cal 1", "Cal 2", "Cal 3", "Cal 4", "Dart"];
+                for (let i = 0; i < pts.length; i += 2) {
+                    const x = pts[i] * width + offsetX;
+                    const y = pts[i+1] * height + offsetY;
+                    const classIdx = i / 2;
+                    const name = classNames[classIdx] || `Dart ${Math.floor(classIdx - 3)}`;
+
+                    const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+                    circle.setAttribute("cx", x);
+                    circle.setAttribute("cy", y);
+                    circle.setAttribute("r", 6);
+                    circle.setAttribute("class", "keypoint-marker");
+                    if (classIdx >= 4) circle.style.fill = "#ff4d4d"; // Red for dart
+                    
+                    const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                    label.setAttribute("x", x + 10);
+                    label.setAttribute("y", y - 10);
+                    label.setAttribute("fill", classIdx < 4 ? "#00ff88" : "#ff4d4d");
+                    label.setAttribute("font-size", "14px");
+                    label.setAttribute("font-weight", "600");
+                    label.textContent = name;
+                    
+                    svgOverlay.appendChild(circle);
+                    svgOverlay.appendChild(label);
+                }
+            }, 50);
+        }
+    </script>
+</body>
+</html>
