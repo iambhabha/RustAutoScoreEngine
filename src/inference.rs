@@ -17,7 +17,7 @@ pub fn run_inference<B: Backend>(device: &B::Device, image_path: &str) {
 
     println!("🖼️ Processing image: {}...", image_path);
     let img = image::open(image_path).expect("Failed to open image");
-    let resized = img.resize_exact(800, 800, image::imageops::FilterType::Triangle);
+    let resized = img.resize_exact(416, 416, image::imageops::FilterType::Triangle);
     let pixels: Vec<f32> = resized
         .to_rgb8()
         .pixels()
@@ -30,7 +30,7 @@ pub fn run_inference<B: Backend>(device: &B::Device, image_path: &str) {
         })
         .collect();
 
-    let data = TensorData::new(pixels, [800, 800, 3]);
+    let data = TensorData::new(pixels, [416, 416, 3]);
     let input = Tensor::<B, 3>::from_data(data, device)
         .unsqueeze::<4>()
         .permute([0, 3, 1, 2]);
@@ -38,12 +38,12 @@ pub fn run_inference<B: Backend>(device: &B::Device, image_path: &str) {
     println!("🚀 Running MODEL Prediction...");
     let (out16, _out32) = model.forward(input);
 
-    // Post-process out16 (size [1, 30, 100, 100])
-    // Decode objectness part (Channel 4 for Anchor 0)
+    // out16 shape: [1, 30, 26, 26]
+    // 1. Extract Objectness (Channel 4 of first anchor)
     let obj = burn::tensor::activation::sigmoid(out16.clone().narrow(1, 4, 1));
 
-    // Find highest confidence cell
-    let (max_val, _) = obj.reshape([1, 10000]).max_dim_with_indices(1);
+    // 2. Find highest confidence cell in 26x26 grid
+    let (max_val, _) = obj.reshape([1, 676]).max_dim_with_indices(1);
     let confidence: f32 = max_val
         .to_data()
         .convert::<f32>()

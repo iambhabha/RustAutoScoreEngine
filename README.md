@@ -29,7 +29,8 @@ Using the **Burn Deep Learning Framework**, this project achieves sub-millisecon
 ## Dataset and Preparation
 The model is trained on the primary dataset used for high-precision dart detection.
 
-- **Download Link**: [Dataset Resources (Google Drive)](https://drive.google.com/file/d/1ZEvuzg9zYbPd1FdZgV6v1aT4sqbqmLqp/view?usp=sharing)
+- **Model Weights Link**: [Neural Weights & TFLite (Google Drive)](https://drive.google.com/file/d/1ZEvuzg9zYbPd1FdZgV6v1aT4sqbqmLqp/view?usp=sharing)
+- **Dataset Source**: [DeepDarts (IEEE Dataport)](https://ieee-dataport.org/open-access/deepdarts-dataset)
 - **Resolution**: 800x800 pre-cropped high-resolution images.
 - **Structure**: Organize your data in the `dataset/800/` directory following the provided `labels.json` schema.
 
