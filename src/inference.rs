@@ -3,7 +3,7 @@ use burn::module::Module;
 use burn::record::{BinFileRecorder, FullPrecisionSettings, Recorder};
 use burn::tensor::backend::Backend;
 use burn::tensor::{Tensor, TensorData};
-use image::{DynamicImage, GenericImageView};
+use image;
 
 pub fn run_inference<B: Backend>(device: &B::Device, image_path: &str) {
     println!("🔍 Loading model for inference...");

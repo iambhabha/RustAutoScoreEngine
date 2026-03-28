@@ -59,21 +59,27 @@ cargo build --release
 ### Step 1: Training the AI Model
 To optimize the neural network for your local environment, run the training mode:
 ```bash
-# Starts the training cycle (Configured for 50 Epochs)
-cargo run
+# Starts the training cycle
+cargo run -- train
 ```
-*Tip: Allow the loss to converge below 0.05 for optimal results.*
 
-### Step 2: Running the Dashboard
-After training is complete (generating the `model_weights.bin` file), launch the testing interface:
+### Step 2: Running the Professional Dashboard
+Launch the visual testing interface to see real-time detections and scores:
 ```bash
-# Starts the Axum web server
+# Starts the modular Axum web server
 cargo run -- gui
 ```
 **Features:**
-- **Image Upload**: Test local image samples via the dashboard.
-- **Point Visualization**: Inspect detected calibration points and dart locations.
-- **Automatic Scoring**: Instant sector calculation and latency reporting.
+- **Dynamic Image Upload**: Test board imagery via the premium glassmorphism dashboard.
+- **Neural Point Mapping**: Inspect detected calibration corners and dart locations with hover effects.
+- **Real-time Scoring**: Instant sector calculation based on official BDO geometry.
+
+### Step 3: CLI Model Testing
+Test individual images directly from the terminal:
+```bash
+# Test a specific image
+cargo run -- test path/to/image.jpg
+```
 
 ---
 
@@ -125,6 +131,7 @@ If you encounter a bug or wish to provide performance optimizations, please subm
 
 ## Resources
 
+- **Core AI Framework**: [Burn - A Flexible & Comprehensive Deep Learning Framework](https://burn.dev/)
 - **Original Inspiration**: [Paper: Keypoints as Objects for Automatic Scorekeeping](https://arxiv.org/abs/2105.09880)
 - **Model Training Resources**: [Download from Google Drive](https://drive.google.com/file/d/1ZEvuzg9zYbPd1FdZgV6v1aT4sqbqmLqp/view?usp=sharing)
 - **Official Documentation Reference**: [IEEE Dataport Dataset](https://ieee-dataport.org/open-access/deepdarts-dataset)
