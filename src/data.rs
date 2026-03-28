@@ -90,12 +90,16 @@ impl<B: Backend> DartBatcher<B> {
                 let gx = (p[0] * grid_size as f32).floor().clamp(0.0, (grid_size - 1) as f32) as usize;
                 let gy = (p[1] * grid_size as f32).floor().clamp(0.0, (grid_size - 1) as f32) as usize;
 
+                // Use Grid-Relative Coordinates (Relative to cell top-left)
+                let tx = p[0] * grid_size as f32 - gx as f32;
+                let ty = p[1] * grid_size as f32 - gy as f32;
+
                 let cls = if i < 4 { i + 1 } else { 0 };
                 let base_idx = (b_idx * num_channels * grid_size * grid_size) + (gy * grid_size) + gx;
 
                 // TF order: [x,y,w,h,obj,p0..p4]
-                target_raw[base_idx + 0 * grid_size * grid_size] = p[0];    // X
-                target_raw[base_idx + 1 * grid_size * grid_size] = p[1];    // Y
+                target_raw[base_idx + 0 * grid_size * grid_size] = tx; // X (offset in cell)
+                target_raw[base_idx + 1 * grid_size * grid_size] = ty; // Y (offset in cell)
                 target_raw[base_idx + 2 * grid_size * grid_size] = 0.05;    // W
                 target_raw[base_idx + 3 * grid_size * grid_size] = 0.05;    // H
                 target_raw[base_idx + 4 * grid_size * grid_size] = 1.0;     // Objectness (conf)

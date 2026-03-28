@@ -32,9 +32,10 @@ pub fn diou_loss<B: Backend>(
         .mul_scalar(5.0); // Boost class learning
 
     // 4. Coordinates (Channels 0-3) - Only learn when object exists
+    // 2. Coordinate Loss (MSE on relative offsets) - Weighted x10 for precision
     let b_xy_pred = burn::tensor::activation::sigmoid(bp.clone().narrow(2, 0, 2));
     let b_xy_target = t.clone().narrow(2, 0, 2);
-    let xy_loss = b_xy_pred.sub(b_xy_target).powf_scalar(2.0).mul(obj_target.clone()).mean().mul_scalar(5.0);
+    let xy_loss = b_xy_pred.sub(b_xy_target).powf_scalar(2.0).mul(obj_target.clone()).mean().mul_scalar(10.0);
 
     let b_wh_pred = burn::tensor::activation::sigmoid(bp.clone().narrow(2, 2, 2));
     let b_wh_target = t.clone().narrow(2, 2, 2);

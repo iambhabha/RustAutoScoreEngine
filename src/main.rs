@@ -32,7 +32,7 @@ fn main() {
         let dataset_path = "dataset/labels.json";
 
         let config = TrainingConfig {
-            num_epochs: 10,
+            num_epochs: 50,
             batch_size: 1,
             lr: 1e-3,
         };

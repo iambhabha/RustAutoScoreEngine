@@ -30,40 +30,40 @@ impl<B: Backend> ConvBlock<B> {
 
 #[derive(Module, Debug)]
 pub struct DartVisionModel<B: Backend> {
-    // Lean architecture: High resolution (800x800) but low channel count to fix GPU OOM
-    l1: ConvBlock<B>, // 3 -> 16
+    // Increased capacity: High resolution but enough width to map complex features
+    l1: ConvBlock<B>, // 3 -> 32
     p1: MaxPool2d,
-    l2: ConvBlock<B>, // 16 -> 16
+    l2: ConvBlock<B>, // 32 -> 32
     p2: MaxPool2d,
-    l3: ConvBlock<B>, // 16 -> 32
+    l3: ConvBlock<B>, // 32 -> 64
     p3: MaxPool2d,
-    l4: ConvBlock<B>, // 32 -> 32
+    l4: ConvBlock<B>, // 64 -> 64
     p4: MaxPool2d,
-    l5: ConvBlock<B>, // 32 -> 64
-    l6: ConvBlock<B>, // 64 -> 64
+    l5: ConvBlock<B>, // 64 -> 128
+    l6: ConvBlock<B>, // 128 -> 128
 
-    head_32: Conv2d<B>, // Final detection head
+    head_32: Conv2d<B>, // Final detection head (30 channels for 3 anchors)
 }
 
 impl<B: Backend> DartVisionModel<B> {
     pub fn new(device: &B::Device) -> Self {
-        let l1 = ConvBlock::new(3, 16, [3, 3], device);
+        let l1 = ConvBlock::new(3, 32, [3, 3], device);
         let p1 = MaxPool2dConfig::new([2, 2]).with_strides([2, 2]).init();
         
-        let l2 = ConvBlock::new(16, 16, [3, 3], device);
+        let l2 = ConvBlock::new(32, 32, [3, 3], device);
         let p2 = MaxPool2dConfig::new([2, 2]).with_strides([2, 2]).init();
         
-        let l3 = ConvBlock::new(16, 32, [3, 3], device);
+        let l3 = ConvBlock::new(32, 64, [3, 3], device);
         let p3 = MaxPool2dConfig::new([2, 2]).with_strides([2, 2]).init();
         
-        let l4 = ConvBlock::new(32, 32, [3, 3], device);
+        let l4 = ConvBlock::new(64, 64, [3, 3], device);
         let p4 = MaxPool2dConfig::new([2, 2]).with_strides([2, 2]).init();
         
-        let l5 = ConvBlock::new(32, 64, [3, 3], device);
-        let l6 = ConvBlock::new(64, 64, [3, 3], device);
+        let l5 = ConvBlock::new(64, 128, [3, 3], device);
+        let l6 = ConvBlock::new(128, 128, [3, 3], device);
 
-        // 30 channels = 3 anchors * (x,y,w,h,obj,p0...p4)
-        let head_32 = Conv2dConfig::new([64, 30], [1, 1]).init(device);
+        // 30 channels = 3 anchors * (x,y,w,h,obj,dart,cal1,cal2,cal3,cal4)
+        let head_32 = Conv2dConfig::new([128, 30], [1, 1]).init(device);
 
         Self { l1, p1, l2, p2, l3, p3, l4, p4, l5, l6, head_32 }
     }

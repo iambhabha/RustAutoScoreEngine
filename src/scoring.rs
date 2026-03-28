@@ -23,44 +23,49 @@ impl Default for ScoringConfig {
 pub fn get_board_dict() -> HashMap<i32, &'static str> {
     let mut m = HashMap::new();
     // BDO standard mapping based on degrees
-    let slices = ["13", "4", "18", "1", "20", "5", "12", "9", "14", "11", "8", "16", "7", "19", "3", "17", "2", "15", "10", "6"];
+    let slices = [
+        "6", "13", "4", "18", "1", "20", "5", "12", "9", "14", "11", "8", "16", "7", "19", "3",
+        "17", "2", "15", "10",
+    ];
     for (i, &s) in slices.iter().enumerate() {
         m.insert(i as i32, s);
     }
     m
 }
 
-pub fn calculate_dart_score(cal_pts: &[[f32; 2]], dart_pt: &[f32; 2], config: &ScoringConfig) -> (i32, String) {
+pub fn calculate_dart_score(
+    cal_pts: &[[f32; 2]],
+    dart_pt: &[f32; 2],
+    config: &ScoringConfig,
+) -> (i32, String) {
     // 1. Calculate Center (Average of 4 calibration points)
     let cx = cal_pts.iter().map(|p| p[0]).sum::<f32>() / 4.0;
     let cy = cal_pts.iter().map(|p| p[1]).sum::<f32>() / 4.0;
 
     // 2. Calculate average radius to boundary (doubles wire)
-    let avg_r_px = cal_pts.iter()
+    let avg_r_px = cal_pts
+        .iter()
         .map(|p| ((p[0] - cx).powi(2) + (p[1] - cy).powi(2)).sqrt())
-        .sum::<f32>() / 4.0;
+        .sum::<f32>()
+        / 4.0;
 
     // 3. Relative distance of dart from center
     let dx = dart_pt[0] - cx;
     let dy = dart_pt[1] - cy;
     let dist_px = (dx.powi(2) + dy.powi(2)).sqrt();
-    
+
     // Scale distance relative to BDO double radius
     let dist_scaled = (dist_px / avg_r_px) * config.r_double;
 
     // 4. Calculate Angle (0 is 3 o'clock, CCW)
     let mut angle_deg = (-dy).atan2(dx).to_degrees();
-    if angle_deg < 0.0 { angle_deg += 360.0; }
-    
-    // Board is rotated such that 20 is at top (90 deg)
-    // Sector width is 18 deg. Sector 20 is centered at 90 deg.
-    // 90 deg is index 4 in slices (13, 4, 18, 1, 20...)
-    // Each index is 18 deg. Offset = 4 * 18 = 72? No.
-    // Let's use the standard mapping: (angle / 18)
-    // Wait, the BOARD_DICT in Python uses int(angle / 18) where angle is 0-360.
-    // We need to match the slice orientation.
+    if angle_deg < 0.0 {
+        angle_deg += 360.0;
+    }
+
+    // Center sectors by adding 9 degrees (half-sector width)
     let board_dict = get_board_dict();
-    let sector_idx = ((angle_deg / 18.0).floor() as i32) % 20;
+    let sector_idx = (((angle_deg + 9.0) / 18.0).floor() as i32) % 20;
     let sector_num = board_dict.get(&sector_idx).unwrap_or(&"0");
 
     // 5. Determine multipliers based on scaled distance
