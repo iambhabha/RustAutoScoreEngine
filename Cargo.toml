@@ -3,12 +3,27 @@ name = "rust_auto_score_engine"
 version = "0.1.0"
 edition = "2021"
 
+[lib]
+crate-type = ["cdylib", "rlib"]
+
 [dependencies]
+# Burn with both Train (for local) and WGPU (for local & web)
 burn = { version = "0.16.0", features = ["train", "wgpu"] }
+
+# WASM Bindings
+wasm-bindgen = "0.2"
+js-sys = "0.3"
+web-sys = { version = "0.3", features = ["console"] }
+serde-wasm-bindgen = "0.6"
+console_error_panic_hook = "0.1"
+
+# General
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-image = "0.25"
+image = { version = "0.25", features = ["png", "jpeg"] }
 ndarray = "0.16"
+
+# Server (Only used for local dev binary)
 axum = { version = "0.7", features = ["multipart"] }
 tower-http = { version = "0.5", features = ["fs", "cors"] }
 tokio = { version = "1.0", features = ["full"] }

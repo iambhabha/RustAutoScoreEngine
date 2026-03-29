@@ -6,12 +6,11 @@ A high-performance dart scoring system architected in Rust, utilizing the Burn D
 
 ---
 
-## Project Origin
+## Live Demo (No Server Required)
 
-This system is an optimized re-implementation of the **[Dart-Vision](https://github.com/iambhabha/Dart-Vision)** repository. While the original project provided the foundational neural logic in Python/PyTorch, this engine focuses on:
-- **Performance:** Sub-millisecond tensor operations using the Burn framework.
-- **Safety:** Eliminating runtime overhead and ensuring thread-safe inference.
-- **Modern UI:** Transitioning from local scripts to a professional Glassmorphism web dashboard.
+The entire neural engine can run directly in your browser using **WebAssembly (WASM)**. No installation or heavy server is required.
+
+**Try it here:** [https://iambhabha.github.io/RustAutoScoreEngine/](https://iambhabha.github.io/RustAutoScoreEngine/)
 
 ---
 
@@ -48,37 +47,31 @@ The engine implements a multi-stage neural pipeline designed for millisecond-lat
 ### Initial Setup
 1. Clone the repository.
 2. Ensure `model_weights.bin` is present in the root directory.
-3. To test the GUI immediately, run the `gui` command.
-4. For custom training, place your images in `dataset/800/` and configuration in `dataset/labels.json`.
+3. For local dashboard, run the `gui` command.
+4. For custom training, place images in `dataset/800/` and configuration in `dataset/labels.json`.
 
 ---
 
 ## Advanced Architecture and Optimization
 
 ### 1. Distance-IOU (DIOU) Loss Implementation
-Our implementation moves beyond standard Mean Squared Error. By utilizing DIOU Loss, the engine optimizes for:
-- Overlap area between prediction and target.
-- Euclidean distance between the central points.
-- Geometric consistency of the dart point shape.
+Utilizing DIOU Loss ensures stable training and faster convergence for small objects like dart tips by calculating intersection over union alongside center distance.
 
 ### 2. Deep-Dart Symmetry Engine
-If a calibration corner is missing or obscured by a dart or observer, the system invokes a symmetry-based recovery algorithm. By calculating the centroid of the remaining points and applying rotational offsets, the board coordinates are maintained without recalibration.
+If a calibration corner is obscured, the system invokes a symmetry-based recovery algorithm to reconstruct the board area without recalibration.
 
 ### 3. Memory & VRAM Optimization
-The training loop is architected to detach the Autodiff computation graph during logging cycles. This reduces VRAM consumption from an unoptimized 270GB down to approximately 3.3GB per training sample at 800x800 resolution.
+Optimized to handle 800x800 resolution training on consumer GPUs by efficiently detaching the Autodiff computation graph during logging cycles (Usage: ~3.3GB VRAM).
 
 ---
 
 ## Resources and Research
 
-This project is built upon advanced research in the computer vision and darts community:
-
 ### Scientific Publications
-- **arXiv Project (2105.09880):** [DeepDarts: Neural Network for Coordinate Reconstruction](https://arxiv.org/abs/2105.09880)
-- **Darknet Research:** [YOLOv4-tiny Implementation and Paper](https://pjreddie.com/darknet/yolo/)
+- **arXiv Project (2105.09880):** [DeepDarts Neural Network Paper](https://arxiv.org/abs/2105.09880)
+- **Original Project:** [iambhabha/Dart-Vision](https://github.com/iambhabha/Dart-Vision)
 
 ### Source Materials
-- **Original Project:** [iambhabha/Dart-Vision](https://github.com/iambhabha/Dart-Vision)
 - **Dataset (IEEE Dataport):** [Official DeepDarts Collection (16K+ Images)](https://ieee-dataport.org/open-access/deepdarts-dataset)
 - **Framework (Burn):** [Burn Deep Learning Documentation](https://burn.dev/book/)
 
