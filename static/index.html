@@ -109,6 +109,7 @@
             display: flex;
             flex-direction: column;
             gap: 1.5rem;
+            max-width: 800px;
         }
 
         .upload-container {
@@ -116,14 +117,17 @@
             backdrop-filter: blur(30px);
             border: 1px solid var(--glass-border);
             border-radius: 32px;
-            padding: 1.5rem;
+            padding: 0;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
             cursor: pointer;
             transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-            min-height: 700px;
+            width: 800px;
+            height: 800px;
+            max-width: 100%;
+            aspect-ratio: 1 / 1;
             position: relative;
             overflow: hidden;
             box-shadow: var(--panel-shadow);
@@ -154,11 +158,11 @@
         }
 
         #preview-img {
-            max-width: 100%;
-            max-height: 650px;
+            width: 100%;
+            height: 100%;
             border-radius: 24px;
             display: block;
-            object-fit: contain;
+            object-fit: cover;
             transition: 0.3s;
         }
 
@@ -505,7 +509,12 @@
         async function startCamera() {
             try {
                 stream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
+                    video: { 
+                        facingMode: 'environment', 
+                        width: { ideal: 800 }, 
+                        height: { ideal: 800 },
+                        aspectRatio: { exact: 1 }
+                    }
                 });
                 video.srcObject = stream;
                 cameraState.style.display = 'flex';
@@ -548,11 +557,17 @@
             if (video.videoWidth === 0) return;
 
             const context = captureCanvas.getContext('2d');
-            captureCanvas.width = video.videoWidth;
-            captureCanvas.height = video.videoHeight;
-            context.drawImage(video, 0, 0, captureCanvas.width, captureCanvas.height);
+            captureCanvas.width = 800;
+            captureCanvas.height = 800;
+            
+            // Center crop to 800x800
+            const size = Math.min(video.videoWidth, video.videoHeight);
+            const sx = (video.videoWidth - size) / 2;
+            const sy = (video.videoHeight - size) / 2;
+            
+            context.drawImage(video, sx, sy, size, size, 0, 0, 800, 800);
 
-            const blob = await new Promise(resolve => captureCanvas.toBlob(resolve, 'image/jpeg', 0.8));
+            const blob = await new Promise(resolve => captureCanvas.toBlob(resolve, 'image/jpeg', 0.95));
             const file = new File([blob], "capture.jpg", { type: 'image/jpeg' });
 
             // Re-use logic
