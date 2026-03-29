@@ -1,27 +1,17 @@
 # Rust
-target/
-debug/
-release/
+/target/
+**/*.rs.bk
+Cargo.lock
 
-# IDEs
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
+# Dataset (DONT COMMIT Large 16K+ Images)
+/dataset/
+/dataset/*/
+!/dataset/labels.json
+
+# Operating System
 .DS_Store
+Thumbs.db
 
-# Data & Model Weights
-model_weights.bin
-model_weights/
-dataset/images/
-dataset/cropped_images/
-dataset/800/
-dataset/__pycache__/
-
-# Logs & Temp
-*.log
-logs/
-tmp/
-temp/
-*.tmp
+# Optional: You can keep model_weights.bin if it's small (~1.1 MB)
+# to let others use the GUI immediately.
+# model_weights.bin

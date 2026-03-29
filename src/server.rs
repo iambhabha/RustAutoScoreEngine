@@ -19,6 +19,7 @@ use tower_http::cors::CorsLayer;
 struct PredictResult {
     confidence: f32,
     keypoints: Vec<f32>,
+    confidences: Vec<f32>, // Individual confidence for each point
     scores: Vec<String>,
 }
 
@@ -50,7 +51,7 @@ pub async fn start_gui(device: WgpuDevice) {
             let start_time = std::time::Instant::now();
             
             let img = image::load_from_memory(&req.image_bytes).unwrap();
-            let resized = img.resize_exact(416, 416, image::imageops::FilterType::Triangle);
+            let resized = img.resize_exact(800, 800, image::imageops::FilterType::Triangle);
             let pixels: Vec<f32> = resized
                 .to_rgb8()
                 .pixels()
@@ -63,14 +64,17 @@ pub async fn start_gui(device: WgpuDevice) {
                 })
                 .collect();
 
-            let tensor_data = TensorData::new(pixels, [1, 416, 416, 3]);
+            let tensor_data = TensorData::new(pixels, [1, 800, 800, 3]);
             let input =
                 Tensor::<Wgpu, 4>::from_data(tensor_data, &worker_device).permute([0, 3, 1, 2]);
 
             let (out16, _) = model.forward(input);
 
-            // 1. Reshape to separate anchors: [1, 3, 10, 26, 26]
-            let out_reshaped = out16.reshape([1, 3, 10, 26, 26]);
+            // out16 shape: [1, 30, 50, 50] — 800/16 = 50
+            // Reshape to separate anchors: [1, 3, 10, 50, 50]
+            let out_reshaped = out16.reshape([1, 3, 10, 50, 50]);
+            let grid_size: usize = 50;
+            let num_cells: usize = grid_size * grid_size; // 2500
 
             // 1.5 Debug: Raw Statistics
             println!(
@@ -80,6 +84,7 @@ pub async fn start_gui(device: WgpuDevice) {
             );
 
             let mut final_points = vec![0.0f32; 8]; // 4 corners
+            let mut final_confs = vec![0.0f32; 4];  // 4 corner confs
             let mut max_conf = 0.0f32;
 
             // 2. Extract best calibration corner for each class 1 to 4
@@ -101,14 +106,14 @@ pub async fn start_gui(device: WgpuDevice) {
                     );
                     let score = obj.mul(prob);
 
-                    let (val, idx) = score.reshape([1, 676]).max_dim_with_indices(1);
+                    let (val, idx) = score.reshape([1_usize, num_cells]).max_dim_with_indices(1);
                     let s = val.to_data().convert::<f32>().as_slice::<f32>().unwrap()[0];
                     if s > best_s {
                         best_s = s;
                         best_anchor = anchor;
                         let f_idx =
                             idx.to_data().convert::<i32>().as_slice::<i32>().unwrap()[0] as usize;
-                        best_grid = (f_idx % 26, f_idx / 26);
+                        best_grid = (f_idx % grid_size, f_idx / grid_size);
 
                         let sx = burn::tensor::activation::sigmoid(
                             out_reshaped
@@ -147,14 +152,16 @@ pub async fn start_gui(device: WgpuDevice) {
                         
                         // Reconstruct Absolute Normalized Coord (0-1)
                         best_pt = [
-                            (best_grid.0 as f32 + sx) / 26.0,
-                            (best_grid.1 as f32 + sy) / 26.0,
+                            (best_grid.0 as f32 + sx) / grid_size as f32,
+                            (best_grid.1 as f32 + sy) / grid_size as f32,
                         ];
                     }
                 }
 
                 final_points[(cls_idx - 1) * 2] = best_pt[0];
                 final_points[(cls_idx - 1) * 2 + 1] = best_pt[1];
+                final_confs[cls_idx - 1] = best_s;
+
                 if best_s > max_conf {
                     max_conf = best_s;
                 }
@@ -215,14 +222,14 @@ pub async fn start_gui(device: WgpuDevice) {
                 let prob = burn::tensor::activation::sigmoid(
                     out_reshaped.clone().narrow(1, anchor, 1).narrow(2, 5, 1),
                 );
-                let score = obj.mul(prob).reshape([1, 676]);
+                let score = obj.mul(prob).reshape([1_usize, num_cells]);
 
                 let (val, idx) = score.max_dim_with_indices(1);
                 let s = val.to_data().convert::<f32>().as_slice::<f32>().unwrap()[0];
                 let f_idx = idx.to_data().convert::<i32>().as_slice::<i32>().unwrap()[0] as usize;
 
-                let gx = f_idx % 26;
-                let gy = f_idx / 26;
+                let gx = f_idx % grid_size;
+                let gy = f_idx / grid_size;
 
                 let dsx = burn::tensor::activation::sigmoid(
                     out_reshaped
@@ -247,8 +254,8 @@ pub async fn start_gui(device: WgpuDevice) {
                 .as_slice::<f32>()
                 .unwrap()[0];
 
-                let dx = (gx as f32 + dsx) / 26.0;
-                let dy = (gy as f32 + dsy) / 26.0;
+                let dx = (gx as f32 + dsx) / grid_size as f32;
+                let dy = (gy as f32 + dsy) / grid_size as f32;
 
                 if s > 0.005 {
                     println!(
@@ -266,6 +273,7 @@ pub async fn start_gui(device: WgpuDevice) {
                 if *s > 0.05 {
                     final_points.push(pt[0]);
                     final_points.push(pt[1]);
+                    final_confs.push(*s);
                     println!(
                         "   ✅ Best Dart Picked: Conf: {:.2}%, Coord: {:?}",
                         s * 100.0,
@@ -317,6 +325,7 @@ pub async fn start_gui(device: WgpuDevice) {
             let _ = req.response_tx.send(PredictResult {
                 confidence: max_conf,
                 keypoints: final_points,
+                confidences: final_confs,
                 scores: final_scores,
             });
         }
@@ -358,6 +367,7 @@ async fn predict_handler(
             let result = res_rx.await.unwrap_or(PredictResult {
                 confidence: 0.0,
                 keypoints: vec![],
+                confidences: vec![],
                 scores: vec![],
             });
 
@@ -365,7 +375,9 @@ async fn predict_handler(
                 "status": "success",
                 "confidence": result.confidence,
                 "keypoints": result.keypoints,
+                "confidences": result.confidences,
                 "scores": result.scores,
+                "is_calibrated": result.confidences.iter().take(4).all(|&c| c > 0.05),
                 "message": if result.confidence > 0.1 {
                     format!("✅ Found {} darts! High confidence: {:.1}%", result.scores.len(), result.confidence * 100.0)
                 } else {

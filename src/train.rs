@@ -66,13 +66,14 @@ pub fn train<B: AutodiffBackend>(device: Device<B>, dataset_path: &str, config: 
             let loss = diou_loss(out16, batch.targets);
             batch_count += 1;
 
-            // Print every 10 batches to keep terminal clean and avoid stdout sync lag
+            // Print every 20 batches — use detach() to avoid cloning the full autodiff graph
             if batch_count % 20 == 0 || batch_count == 1 {
+                let loss_val = loss.clone().detach().into_scalar();
                 println!(
                     "   [Epoch {}] Batch {: >3} | Loss: {:.6}",
                     epoch,
                     batch_count,
-                    loss.clone().into_scalar()
+                    loss_val
                 );
             }
 

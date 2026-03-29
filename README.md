@@ -1,144 +1,43 @@
-# RustAutoScoreEngine
-### High-Performance AI Dart Scoring Powered by Rust & Burn
+# 🎯 DartVision AI - Rust AutoScore Engine
 
-<div align="center">
+A high-performance dart scoring system built with **Rust** and the **Burn** Deep Learning framework. This project is a port of the original YOLOv4-tiny based DartVision, optimized for speed and safety.
 
-[![Rust](https://img.shields.io/badge/Rust-1.75%2B-orange?style=for-the-badge&logo=rust)](https://www.rust-lang.org/)
-[![Burn](https://img.shields.io/badge/Burn-AI--Framework-red?style=for-the-badge)](https://burn.dev/)
-[![WGPU](https://img.shields.io/badge/Backend-WGPU%20/%20Cuda-blue?style=for-the-badge)](https://github.com/gfx-rs/wgpu)
-[![License](https://img.shields.io/badge/License-MIT-purple?style=for-the-badge)](LICENSE)
+![DartVision Dashboard](https://raw.githubusercontent.com/iambhabha/RustAutoScoreEngine/main/docs/dashboard.png)
 
-**A professional-grade, real-time dart scoring engine built entirely in Rust.**
-
-Using the **Burn Deep Learning Framework**, this project achieves sub-millisecond inference and high-precision keypoint detection for automatic dart game tracking. The model optimization pipeline is built using modern Rust patterns for maximum safety and performance.
-
-</div>
-
----
-
-## Features
-
-- **Optimized Inference**: Powered by Rust & WGPU for hardware-accelerated performance on Windows, Linux, and macOS.
-- **Multi-Scale Keypoint Detection**: Enhanced YOLO-style heads for detecting dart tips and calibration corners.
-- **BDO Logic Integrated**: Real-time sector calculation based on official board geometry and calibration symmetry.
-- **Modern Web Dashboard**: Axum-based visual interface to monitor detections, scores, and latency in real-time.
-- **Robust Calibration**: Automatic symmetry estimation to recover missing calibration points.
-
----
-
-## Dataset and Preparation
-The model is trained on the primary dataset used for high-precision dart detection.
-
-- **Model Weights Link**: [Neural Weights & TFLite (Google Drive)](https://drive.google.com/file/d/1ZEvuzg9zYbPd1FdZgV6v1aT4sqbqmLqp/view?usp=sharing)
-- **Dataset Source**: [DeepDarts (IEEE Dataport)](https://ieee-dataport.org/open-access/deepdarts-dataset)
-- **Resolution**: 800x800 pre-cropped high-resolution images.
-- **Structure**: Organize your data in the `dataset/800/` directory following the provided `labels.json` schema.
-
----
-
-## Installation
-
-### 1. Install Rust
-If you do not have Rust installed, use the official installation script:
+## 🚀 Quick Start (GUI Dashboard)
+The project comes with pre-trained weights (`model_weights.bin`). You can start the professional dashboard immediately:
 
 ```bash
-# Official Installation
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+cargo run --release -- gui
 ```
+Then open: **[http://127.0.0.1:8080](http://127.0.0.1:8080)**
 
-### 2. Clone and Build
+## 📈 Training
+To train the model on your own dataset (requires `dataset/labels.json` and images):
+
 ```bash
-git clone https://github.com/iambhabha/RustAutoScoreEngine.git
-cd RustAutoScoreEngine
-cargo build --release
+cargo run --release -- train
 ```
+*Note: The model saves checkpoints every 100 batches. You can stop and resume training anytime.*
 
----
+## 🔬 Testing
+To run a single image inference and see the neural mapping results:
 
-## Quick Start Guide
-
-### Step 1: Training the AI Model
-To optimize the neural network for your local environment, run the training mode:
 ```bash
-# Starts the training cycle
-cargo run -- train
+cargo run --release -- test <path_to_image>
 ```
 
-### Step 2: Running the Professional Dashboard
-Launch the visual testing interface to see real-time detections and scores:
-```bash
-# Starts the modular Axum web server
-cargo run -- gui
-```
-**Features:**
-- **Dynamic Image Upload**: Test board imagery via the premium glassmorphism dashboard.
-- **Neural Point Mapping**: Inspect detected calibration corners and dart locations with hover effects.
-- **Real-time Scoring**: Instant sector calculation based on official BDO geometry.
+## ✨ Features
+- **Neural Mapping:** Real-time detection of darts and 4 calibration corners.
+- **Smart Scoring:** Automatic coordinate reconstruction and BDO standard scoring.
+- **Reliability Checks:** GUI displays per-point confidence percentages (CAL Sync) to ensure accuracy.
+- **GPU Accelerated:** Powered by `WGPUDevice` and `Burn` for ultra-fast inference.
 
-### Step 3: CLI Model Testing
-Test individual images directly from the terminal:
-```bash
-# Test a specific image
-cargo run -- test path/to/image.jpg
-```
+## 🛠 Project Structure
+- `src/model.rs`: YOLOv4-tiny architecture in Burn.
+- `src/loss.rs`: DIOU Loss + Objectness + Class entropy implementation.
+- `src/server.rs`: Axum-based web server for the GUI.
+- `static/index.html`: Premium Glassmorphism interface with SVG overlays.
 
 ---
-
-## Mobile Deployment
-
-This engine is built on Burn, supporting multiple paths for Android and iOS integration:
-
-### Path A: Native Rust
-Package the engine as a library for direct hardware-accelerated execution on mobile targets.
-- **Backend**: burn-wgpu with Vulkan (Android) or Metal (iOS).
-- **Integration**: JNI (Android) or FFI (iOS) calls from native code.
-
-### Path B: Weight Migration to TFLite/ONNX
-- **TFLite**: Use the companion export scripts to generate a TensorFlow Lite bundle.
-- **ONNX**: Utilize ONNX Runtime (ORT) for high-performance cross-platform execution.
-
----
-
-## Hardware Optimization
-
-This engine is optimized for GPU execution using the WGPU backend. Depending on your specific hardware, you may need to adjust the training intensity:
-
-### GPU VRAM Management
-If you encounter **Out-of-Memory (OOM)** errors during training, you should reduce the **Batch Size**.
-
-- **Where to change**: Open `src/main.rs` and modify the `batch_size` parameter.
-- **Recommendations**:
-  - **4GB VRAM**: Batch Size 1 (Safe default)
-  - **8GB VRAM**: Batch Size 4
-  - **12GB+ VRAM**: Batch Size 8
-  - **RTX 5080 High-End**: Batch Size 16 (Optimal for ultra-fast convergence)
-- **Impact**: Larger batch sizes provide more stable gradients but require exponentially more VRAM.
-
----
-
-## Technical Status and Contributing
-
-> [!IMPORTANT]
-> This project is currently in the experimental phase. We are actively refining the coordinate regression logic to ensure maximum precision across diverse board angles.
-
-**Current Priorities:**
-- Enhancing offset regression stability.
-- Memory optimization for low-VRAM devices.
-
-**Contribution Guidelines:**
-If you encounter a bug or wish to provide performance optimizations, please submit a Pull Request.
-
----
-
-## Resources
-
-- **Core AI Framework**: [Burn - A Flexible & Comprehensive Deep Learning Framework](https://burn.dev/)
-- **Original Inspiration**: [Paper: Keypoints as Objects for Automatic Scorekeeping](https://arxiv.org/abs/2105.09880)
-- **Model Training Resources**: [Download from Google Drive](https://drive.google.com/file/d/1ZEvuzg9zYbPd1FdZgV6v1aT4sqbqmLqp/view?usp=sharing)
-- **Official Documentation Reference**: [IEEE Dataport Dataset](https://ieee-dataport.org/open-access/deepdarts-dataset)
-
----
-
-<div align="center">
-Made by the Rust AI Community
-</div>
+*Created by [iambhabha](https://github.com/iambhabha)*

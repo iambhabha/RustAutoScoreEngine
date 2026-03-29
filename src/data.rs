@@ -69,17 +69,24 @@ impl<B: Backend> DartBatcher<B> {
 
     pub fn batch_manual(&self, items: Vec<Annotation>) -> DartBatch<B> {
         let batch_size = items.len();
-        let input_res: usize = 416; // Standard YOLO 416 resolution for GPU stability
-        let grid_size: usize = 26;  // 416 / 16 (stride accumulation) = 26
-        let num_channels: usize = 30; // 3 anchors * (x,y,w,h,obj,p0...p4)
-        
+        // Use 800 to match original Python training config (configs/deepdarts_d1.yaml: input_size: 800)
+        let input_res: usize = 800;
+        // For tiny YOLO: grid = input_res / 16. 800/16 = 50
+        let grid_size: usize = 50;
+        let num_anchors: usize = 3;
+        let num_attrs: usize = 10; // x, y, w, h, obj, cls0..cls4
+        let num_channels: usize = num_anchors * num_attrs; // = 30
+
         let mut images_list = Vec::with_capacity(batch_size);
         let mut target_raw = vec![0.0f32; batch_size * num_channels * grid_size * grid_size];
 
         for (b_idx, item) in items.iter().enumerate() {
             // 1. Process Image
             let path = format!("dataset/800/{}/{}", item.img_folder, item.img_name);
-            let img = image::open(&path).unwrap_or_else(|_| image::DynamicImage::new_rgb8(input_res as u32, input_res as u32));
+            let img = image::open(&path).unwrap_or_else(|_| {
+                println!("⚠️ [Data] Image not found: {}", path);
+                image::DynamicImage::new_rgb8(input_res as u32, input_res as u32)
+            });
             let resized = img.resize_exact(input_res as u32, input_res as u32, image::imageops::FilterType::Triangle);
             let pixels: Vec<f32> = resized.to_rgb8().pixels()
                 .flat_map(|p| vec![p[0] as f32 / 255.0, p[1] as f32 / 255.0, p[2] as f32 / 255.0])
@@ -87,23 +94,36 @@ impl<B: Backend> DartBatcher<B> {
             images_list.push(TensorData::new(pixels, [input_res, input_res, 3]));
 
             for (i, p) in item.xy.iter().enumerate() {
-                let gx = (p[0] * grid_size as f32).floor().clamp(0.0, (grid_size - 1) as f32) as usize;
-                let gy = (p[1] * grid_size as f32).floor().clamp(0.0, (grid_size - 1) as f32) as usize;
+                // Clamp coordinates to valid grid range
+                let norm_x = p[0].clamp(0.0, 1.0 - 1e-5);
+                let norm_y = p[1].clamp(0.0, 1.0 - 1e-5);
 
-                // Use Grid-Relative Coordinates (Relative to cell top-left)
-                let tx = p[0] * grid_size as f32 - gx as f32;
-                let ty = p[1] * grid_size as f32 - gy as f32;
+                let gx = (norm_x * grid_size as f32).floor() as usize;
+                let gy = (norm_y * grid_size as f32).floor() as usize;
 
+                // Grid-relative offset (0..1 within cell)
+                let tx = norm_x * grid_size as f32 - gx as f32;
+                let ty = norm_y * grid_size as f32 - gy as f32;
+
+                // Python convention: cal points i=0..3 -> cls=1..4, dart i>=4 -> cls=0
                 let cls = if i < 4 { i + 1 } else { 0 };
-                let base_idx = (b_idx * num_channels * grid_size * grid_size) + (gy * grid_size) + gx;
 
-                // TF order: [x,y,w,h,obj,p0..p4]
-                target_raw[base_idx + 0 * grid_size * grid_size] = tx; // X (offset in cell)
-                target_raw[base_idx + 1 * grid_size * grid_size] = ty; // Y (offset in cell)
-                target_raw[base_idx + 2 * grid_size * grid_size] = 0.05;    // W
-                target_raw[base_idx + 3 * grid_size * grid_size] = 0.05;    // H
-                target_raw[base_idx + 4 * grid_size * grid_size] = 1.0;     // Objectness (conf)
-                target_raw[base_idx + (5 + cls) * grid_size * grid_size] = 1.0; // Class prob
+                // Assign this keypoint to anchor (cls % num_anchors) so all 3 anchors get used
+                let anchor_idx = cls % num_anchors;
+
+                // Flat index layout: [batch, anchor, attr, gy, gx]
+                // => flat = b * (3*10*G*G) + anchor * (10*G*G) + attr * (G*G) + gy*G + gx
+                let cell_base = b_idx * num_channels * grid_size * grid_size
+                    + anchor_idx * num_attrs * grid_size * grid_size
+                    + gy * grid_size
+                    + gx;
+
+                target_raw[cell_base + 0 * grid_size * grid_size] = tx;   // x offset
+                target_raw[cell_base + 1 * grid_size * grid_size] = ty;   // y offset
+                target_raw[cell_base + 2 * grid_size * grid_size] = 0.025; // w (bbox_size from config)
+                target_raw[cell_base + 3 * grid_size * grid_size] = 0.025; // h
+                target_raw[cell_base + 4 * grid_size * grid_size] = 1.0;   // objectness
+                target_raw[cell_base + (5 + cls) * grid_size * grid_size] = 1.0; // class prob
             }
         }
 

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DartVision AI - Smart Scoring Dashboard</title>
+    <title>Rust AutoScore Engine - Smart Dashboard</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
@@ -235,8 +235,8 @@
         }
 
         @keyframes pulse-marker {
-            0%, 100% { r: 6; opacity: 1; }
-            50% { r: 10; opacity: 0.6; }
+            0%, 100% { r: 8; opacity: 1; }
+            50% { r: 8; opacity: 0.8; }
         }
 
         .result-item {
@@ -269,7 +269,7 @@
 <body>
     <div class="bg-grid"></div>
     <header>
-        <h1>DARTVISION <span style="font-weight: 200; opacity: 0.4;">CORE</span></h1>
+        <h1>RUST AUTO SCORE <span style="font-weight: 200; opacity: 0.4;">ENGINE</span></h1>
         <p class="subtitle">Neural Scoring & Board Analytics</p>
     </header>
 
@@ -295,6 +295,10 @@
             <div class="stat-card">
                 <div class="stat-label">Model Status</div>
                 <div class="stat-value" id="status-text" style="font-size: 1.4rem; color: var(--primary);">System Ready</div>
+            </div>
+            <div class="stat-card" id="cal-card">
+                <div class="stat-label">Calibration Sync</div>
+                <div class="stat-value" id="cal-status" style="font-size: 1.2rem; color: #8892b0;">Pending...</div>
             </div>
             <div class="stat-card">
                 <div class="stat-label">AI Confidence</div>
@@ -358,7 +362,7 @@
                     document.getElementById('status-text').innerText = 'Analysis Complete';
                     document.getElementById('status-text').style.color = 'var(--primary)';
                     updateUI(data);
-                    drawKeypoints(data.keypoints);
+                    drawKeypoints(data.keypoints, data.confidences);
                 } else {
                     document.getElementById('status-text').innerText = 'Analysis Failed';
                     document.getElementById('status-text').style.color = 'var(--accent)';
@@ -375,6 +379,15 @@
             const conf = (data.confidence * 100).toFixed(1);
             document.getElementById('conf-val').innerText = `${conf}%`;
             document.getElementById('conf-fill').style.width = `${conf}%`;
+
+            const calStatus = document.getElementById('cal-status');
+            if (data.is_calibrated) {
+                calStatus.innerText = "VERIFIED ✅";
+                calStatus.style.color = "var(--primary)";
+            } else {
+                calStatus.innerText = "FAILED ❌";
+                calStatus.style.color = "var(--accent)";
+            }
             
             let resultHtml = `<div style="margin: 1.5rem 0 1rem 0; font-size: 0.95rem; line-height: 1.6; color: rgba(255,255,255,0.9);">${data.message}</div>`;
             if (data.keypoints && data.keypoints.length >= 8) {
@@ -387,12 +400,17 @@
                     const name = names[classIdx] || `Dart ${Math.floor(classIdx - 3)}`;
                     const x = data.keypoints[i].toFixed(3);
                     const y = data.keypoints[i+1].toFixed(3);
+                    const ptConf = ((data.confidences[classIdx] || 0) * 100).toFixed(0);
+                    const isReliable = ptConf > 10;
                     
                     let scoreHtml = "";
                     if (classIdx >= 4 && data.scores && data.scores[classIdx - 4]) {
-                        scoreHtml = `<span class="badge badge-dart">${data.scores[classIdx - 4]}</span>`;
+                        scoreHtml = `<div style="display: flex; flex-direction: column; align-items: flex-end; gap: 4px;">
+                                        <span class="badge badge-dart">${data.scores[classIdx - 4]}</span>
+                                        <span style="font-size: 0.65rem; color: #8892b0; font-weight: 600;">CONF: ${ptConf}%</span>
+                                     </div>`;
                     } else if (isCal) {
-                        scoreHtml = `<span class="badge badge-cal" style="font-size: 0.6rem;">LOCKED</span>`;
+                        scoreHtml = `<span class="badge" style="background: ${isReliable ? 'rgba(0,255,136,0.1)' : 'rgba(255,77,77,0.1)'}; color: ${isReliable ? 'var(--primary)' : 'var(--accent)'}; font-size: 0.6rem; border: 1px solid">${isReliable ? ptConf+'% OK' : ptConf+'% ERR'}</span>`;
                     }
 
                     resultHtml += `
@@ -412,7 +430,7 @@
             while (svgOverlay.firstChild) svgOverlay.removeChild(svgOverlay.firstChild);
         }
 
-        function drawKeypoints(pts) {
+        function drawKeypoints(pts, confs) {
             clearKeypoints();
             if (!pts || pts.length === 0) return;
 
@@ -425,20 +443,21 @@
                 const width = rect.width;
                 const height = rect.height;
 
-                const classNames = ["CALIBRATION CORNER 1", "CALIBRATION CORNER 2", "CALIBRATION CORNER 3", "CALIBRATION CORNER 4", "DART POINT"];
                 for (let i = 0; i < pts.length; i += 2) {
                     const classIdx = i / 2;
                     const isCal = classIdx < 4;
                     const x = pts[i] * width + offsetX;
                     const y = pts[i+1] * height + offsetY;
-                    const name = classNames[classIdx] || `DART POINT`;
+                    
+                    const ptConf = ((confs[classIdx] || 0) * 100).toFixed(0);
+                    const name = isCal ? `CAL ${classIdx+1} (${ptConf}%)` : `DART (${ptConf}%)`;
 
                     const group = document.createElementNS("http://www.w3.org/2000/svg", "g");
                     
                     const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
                     circle.setAttribute("cx", x);
                     circle.setAttribute("cy", y);
-                    circle.setAttribute("r", 7);
+                    circle.setAttribute("r", 8);
                     circle.setAttribute("class", "keypoint-marker");
                     if (!isCal) {
                         circle.style.fill = "#ff4d4d";
@@ -448,7 +467,7 @@
                     const labelBg = document.createElementNS("http://www.w3.org/2000/svg", "rect");
                     labelBg.setAttribute("x", x + 15);
                     labelBg.setAttribute("y", y - 25);
-                    labelBg.setAttribute("width", name.length * 7 + 12);
+                    labelBg.setAttribute("width", name.length * 7 + 15);
                     labelBg.setAttribute("height", "22");
                     labelBg.setAttribute("rx", "11");
                     labelBg.setAttribute("fill", "rgba(0,0,0,0.7)");
