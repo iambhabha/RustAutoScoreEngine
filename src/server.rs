@@ -29,8 +29,12 @@ struct PredictRequest {
 }
 
 pub async fn start_gui(device: WgpuDevice) {
-    let addr = SocketAddr::from(([127, 0, 0, 1], 8080));
-    println!("🚀 [DartVision-GUI] Starting on http://127.0.0.1:8080",);
+    let port = std::env::var("PORT")
+        .unwrap_or_else(|_| "8080".to_string())
+        .parse::<u16>()
+        .unwrap_or(8080);
+    let addr = SocketAddr::from(([0, 0, 0, 0], port));
+    println!("🚀 [DartVision-GUI] Starting on http://0.0.0.0:{}", port);
 
     let (tx, mut rx) = mpsc::channel::<PredictRequest>(10);
 
