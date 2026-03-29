@@ -20,6 +20,7 @@ A high-performance dart scoring system architected in Rust, utilizing the Burn D
 The entire neural engine can run directly in your browser using **WebAssembly (WASM)**. No installation or heavy server is required.
 
 **Try it here (WASM):** [https://iambhabha.github.io/RustAutoScoreEngine/](https://iambhabha.github.io/RustAutoScoreEngine/)
+
 **Try it here (Hugging Face Space):** [https://huggingface.co/spaces/bhabha-kapil/RustAutoScoreEngine](https://huggingface.co/spaces/bhabha-kapil/RustAutoScoreEngine)
 
 ---
