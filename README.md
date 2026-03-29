@@ -59,7 +59,43 @@ The engine implements a multi-stage neural pipeline designed for millisecond-lat
 1. Clone the repository.
 2. Ensure `model_weights.bin` is present in the root directory.
 3. For local dashboard, run the `gui` command.
-4. For custom training, place images in `dataset/800/` and configuration in `dataset/labels.json`.
+4. For custom training, follow the detailed guide below.
+
+---
+
+## 🚀 How to Train Your Own Model (Step-by-Step Guide)
+
+If you want to train the engine from scratch or with your own custom dartboard dataset, follow these exact steps:
+
+### **Step 1: Download the Official Dataset**
+1.  **Source:** Go to the [Official IEEE DeepDarts Collection (16K+ Images)](https://ieee-dataport.org/open-access/deepdarts-dataset).
+2.  **Download:** Download the `.zip` file containing high-resolution board imagery.
+3.  **Extraction:** Extract the images and place them in the project folder at:
+    `dataset/800/`
+
+### **Step 2: Setup Labels and Configuration**
+1.  **Metadata:** Ensure you have a `labels.json` file in the `dataset/` folder.
+2.  **Format:** Each entry should map an image filename to its calibration corners (Classes 1-4) and dart keypoints (Class 0).
+3.  **Pre-processing:** If your images are larger than 800x800, the engine will automatically resize them during training, but 800x800 is recommended for performance.
+
+### **Step 3: Initialize Neural Training**
+Launch the high-concurrency training engine via terminal:
+```bash
+cargo run --release -- train
+```
+*Tip: Ensure your GPU drivers are updated (Vulkan/Metal/DX12 are supported via WGPU).*
+
+### **Step 4: Real-time Checkpointing**
+-   **Auto-Save:** The training loop automatically updates `model_weights.bin` at the end of every epoch.
+-   **Stability:** If training is interrupted, simply restart the command to pick up from the latest loss metrics.
+-   **VRAM Usage:** Optimized for ~3.3GB VRAM, allowing training on single consumer-grade GPUs.
+
+### **Step 5: Verify Your Neural Weights**
+Once you have trained the model (minimum 20-50 epochs recommended), verify the detection accuracy using the built-in GUI:
+```bash
+cargo run --release -- gui
+```
+The Dashboard will launch on **http://localhost:8080**, where you can drop new images to see real-time coordinate recovery and scoring!
 
 ---
 
