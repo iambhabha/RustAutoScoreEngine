@@ -34,7 +34,17 @@ pub async fn start_gui(device: WgpuDevice) {
         .parse::<u16>()
         .unwrap_or(8080);
     let addr = SocketAddr::from(([0, 0, 0, 0], port));
-    println!("🚀 [DartVision-GUI] Starting on http://0.0.0.0:{}", port);
+    
+    println!("🚀 [DartVision-GUI] Starting on http://localhost:{}", port);
+    
+    // Attempt to print all local IP addresses for remote access
+    if let Ok(interfaces) = local_ip_address::list_afinet_netifas() {
+        for (name, ip) in interfaces {
+            if !ip.is_loopback() {
+                println!("🌐 [Remote Access] http://{}:{} ({})", ip, port, name);
+            }
+        }
+    }
 
     let (tx, mut rx) = mpsc::channel::<PredictRequest>(10);
 
