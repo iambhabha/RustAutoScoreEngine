@@ -615,10 +615,8 @@
                         document.getElementById('status-text').style.color = 'var(--primary)';
                     }
                     updateUI(data);
-                    // In camera mode, the video size might differ from the previewImg size
-                    // drawKeypoints handles this using the target element's bounding rect
                     const targetEl = isLive ? video : previewImg;
-                    drawKeypoints(data.keypoints, data.confidences, targetEl);
+                    drawKeypoints(data.keypoints, data.confidences, data.scores, targetEl);
                 }
             } catch (err) {
                 console.error("Inference error:", err);
@@ -676,7 +674,7 @@
             while (svgOverlay.firstChild) svgOverlay.removeChild(svgOverlay.firstChild);
         }
 
-        function drawKeypoints(pts, confs, targetEl) {
+        function drawKeypoints(pts, confs, scores, targetEl) {
             clearKeypoints();
             if (!pts || pts.length === 0) return;
 
@@ -697,7 +695,12 @@
                 const x = pts[i] * width + offsetX;
                 const y = pts[i + 1] * height + offsetY;
                 const ptConf = (conf * 100).toFixed(0);
-                const name = isCal ? `CAL ${classIdx + 1}` : `DART (${ptConf}%)`;
+                
+                // Real-time Labeling: Merge identity and score
+                let labelText = isCal ? `CAL ${classIdx + 1}` : `DART (${ptConf}%)`;
+                if (!isCal && scores && scores[classIdx - 4]) {
+                    labelText = `${scores[classIdx - 4]} [Dart]`;
+                }
 
                 const group = document.createElementNS("http://www.w3.org/2000/svg", "g");
                 const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
@@ -710,13 +713,17 @@
                     circle.style.filter = "drop-shadow(0 0 10px rgba(255, 77, 77, 0.6))";
                 }
 
+                // Create a background rectangle for the label for better readability
                 const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
-                label.setAttribute("x", x + 12);
+                label.setAttribute("x", x + 15);
                 label.setAttribute("y", y - 10);
                 label.setAttribute("fill", isCal ? "#00ff88" : "#ff4d4d");
-                label.setAttribute("font-size", "10px");
+                label.setAttribute("font-size", isCal ? "10px" : "14px"); // Larger score
                 label.setAttribute("font-weight", "800");
-                label.textContent = name;
+                label.style.paintOrder = "stroke";
+                label.style.stroke = "rgba(0,0,0,0.8)";
+                label.style.strokeWidth = "3px";
+                label.textContent = labelText;
 
                 group.appendChild(circle);
                 group.appendChild(label);
