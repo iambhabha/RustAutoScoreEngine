@@ -1,3 +1,12 @@
+---
+title: Rust Auto Score Engine
+emoji: 🎯
+colorFrom: green
+colorTo: blue
+sdk: docker
+pinned: false
+---
+
 # Rust Auto Score Engine
 
 A high-performance dart scoring system architected in Rust, utilizing the Burn Deep Learning framework. This engine is the high-concurrency Rust port of the original Python-based [Dart-Vision](https://github.com/iambhabha/Dart-Vision) project.
