@@ -11,7 +11,7 @@ fn main() {
 
     match app_args.command {
         Command::Gui => {
-            println!("🌐 [Burn-DartVision] Starting Professional Dashboard...");
+            println!("[Burn-DartVision] Starting Professional Dashboard...");
             tokio::runtime::Builder::new_multi_thread()
                 .enable_all()
                 .build()
@@ -22,7 +22,7 @@ fn main() {
             test_model(device, &img_path);
         }
         Command::Train => {
-            println!("🚀 [Burn-DartVision] Starting Full Project Training...");
+            println!("[Burn-DartVision] Starting Full Project Training...");
             let dataset_path = "dataset/labels.json";
 
             let config = TrainingConfig {

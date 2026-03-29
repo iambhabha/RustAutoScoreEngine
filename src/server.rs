@@ -34,14 +34,20 @@ pub async fn start_gui(device: WgpuDevice) {
         .parse::<u16>()
         .unwrap_or(8080);
     let addr = SocketAddr::from(([0, 0, 0, 0], port));
-    
-    println!("🚀 [DartVision-GUI] Starting on http://localhost:{}", port);
-    
-    // Attempt to print all local IP addresses for remote access
+
+    println!("[DartVision-GUI] Starting on http://localhost:{}", port);
+
+    // Attempt to print relevant local IP addresses for remote access
     if let Ok(interfaces) = local_ip_address::list_afinet_netifas() {
         for (name, ip) in interfaces {
-            if !ip.is_loopback() {
-                println!("🌐 [Remote Access] http://{}:{} ({})", ip, port, name);
+            let ip_str = ip.to_string();
+            // Filter for Wi-Fi/Wireless and ensure it's a valid local IPv4 (not loopback or APIPA)
+            if !ip.is_loopback()
+                && ip.is_ipv4()
+                && !ip_str.starts_with("169.254")
+                && (name.contains("Wi-Fi") || name.contains("Wireless"))
+            {
+                println!("[Remote Access] http://{}:{} ({})", ip, port, name);
             }
         }
     }
@@ -55,7 +61,7 @@ pub async fn start_gui(device: WgpuDevice) {
         let record = match recorder.load("model_weights".into(), &worker_device) {
             Ok(r) => r,
             Err(_) => {
-                println!("⚠️ [DartVision] No 'model_weights.bin' yet. Using initial weights...");
+                println!("[DartVision] No 'model_weights.bin' yet. Using initial weights...");
                 model.clone().into_record()
             }
         };
@@ -63,7 +69,7 @@ pub async fn start_gui(device: WgpuDevice) {
 
         while let Some(req) = rx.blocking_recv() {
             let start_time = std::time::Instant::now();
-            
+
             let img = image::load_from_memory(&req.image_bytes).unwrap();
             let resized = img.resize_exact(800, 800, image::imageops::FilterType::Triangle);
             let pixels: Vec<f32> = resized
@@ -92,13 +98,13 @@ pub async fn start_gui(device: WgpuDevice) {
 
             // 1.5 Debug: Raw Statistics
             println!(
-                "🔍 [Model Stats] Raw Min: {:.4}, Max: {:.4}",
+                "[Model Stats] Raw Min: {:.4}, Max: {:.4}",
                 out_reshaped.clone().min().into_scalar(),
                 out_reshaped.clone().max().into_scalar()
             );
 
             let mut final_points = vec![0.0f32; 8]; // 4 corners
-            let mut final_confs = vec![0.0f32; 4];  // 4 corner confs
+            let mut final_confs = vec![0.0f32; 4]; // 4 corner confs
             let mut max_conf = 0.0f32;
 
             // 2. Extract best calibration corner for each class 1 to 4
@@ -163,7 +169,7 @@ pub async fn start_gui(device: WgpuDevice) {
                         .convert::<f32>()
                         .as_slice::<f32>()
                         .unwrap()[0];
-                        
+
                         // Reconstruct Absolute Normalized Coord (0-1)
                         best_pt = [
                             (best_grid.0 as f32 + sx) / grid_size as f32,
@@ -190,7 +196,7 @@ pub async fn start_gui(device: WgpuDevice) {
             let mut valid_cal_count = 0;
             let mut missing_idx = -1;
             for i in 0..4 {
-                if final_points[i*2] > 0.01 || final_points[i*2+1] > 0.01 {
+                if final_points[i * 2] > 0.01 || final_points[i * 2 + 1] > 0.01 {
                     valid_cal_count += 1;
                 } else {
                     missing_idx = i as i32;
@@ -198,9 +204,13 @@ pub async fn start_gui(device: WgpuDevice) {
             }
 
             if valid_cal_count == 3 {
-                println!("⚠️ [Calibration Recovery] Estimating missing point Cal{}...", missing_idx + 1);
+                println!(
+                    "[Calibration Recovery] Estimating missing point Cal{}...",
+                    missing_idx + 1
+                );
                 match missing_idx {
-                    0 | 1 => { // Top points missing, use bottom points center
+                    0 | 1 => {
+                        // Top points missing, use bottom points center
                         let cx = (final_points[4] + final_points[6]) / 2.0;
                         let cy = (final_points[5] + final_points[7]) / 2.0;
                         if missing_idx == 0 {
@@ -210,8 +220,9 @@ pub async fn start_gui(device: WgpuDevice) {
                             final_points[2] = 2.0 * cx - final_points[0];
                             final_points[3] = 2.0 * cy - final_points[1];
                         }
-                    },
-                    2 | 3 => { // Bottom points missing, use top points center
+                    }
+                    2 | 3 => {
+                        // Bottom points missing, use top points center
                         let cx = (final_points[0] + final_points[2]) / 2.0;
                         let cy = (final_points[1] + final_points[3]) / 2.0;
                         if missing_idx == 2 {
@@ -221,7 +232,7 @@ pub async fn start_gui(device: WgpuDevice) {
                             final_points[6] = 2.0 * cx - final_points[4];
                             final_points[7] = 2.0 * cy - final_points[5];
                         }
-                    },
+                    }
                     _ => {}
                 }
             }
@@ -288,11 +299,7 @@ pub async fn start_gui(device: WgpuDevice) {
                     final_points.push(pt[0]);
                     final_points.push(pt[1]);
                     final_confs.push(*s);
-                    println!(
-                        "   ✅ Best Dart Picked: Conf: {:.2}%, Coord: {:?}",
-                        s * 100.0,
-                        pt
-                    );
+                    println!("Best Dart Picked: Conf: {:.2}%, Coord: {:?}", s * 100.0, pt);
                 }
             }
 
@@ -320,9 +327,9 @@ pub async fn start_gui(device: WgpuDevice) {
             }
 
             let duration = start_time.elapsed();
-            println!("⚡ [Inference Performance] Total Latency: {:.2?}", duration);
+            println!("[Performance] Total Latency: {:.2?}", duration);
 
-            println!("🎯 [Final Result] Top Confidence: {:.2}%", max_conf * 100.0);
+            println!("[Final Result] Top Confidence: {:.2}%", max_conf * 100.0);
             let class_names = ["Cal1", "Cal2", "Cal3", "Cal4", "Dart"];
             for (i, pts) in final_points.chunks(2).enumerate() {
                 let name = class_names.get(i).unwrap_or(&"Dart");
@@ -393,9 +400,9 @@ async fn predict_handler(
                 "scores": result.scores,
                 "is_calibrated": result.confidences.iter().take(4).all(|&c| c > 0.05),
                 "message": if result.confidence > 0.1 {
-                    format!("✅ Found {} darts! High confidence: {:.1}%", result.scores.len(), result.confidence * 100.0)
+                    format!("Found {} darts! High confidence: {:.1}%", result.scores.len(), result.confidence * 100.0)
                 } else {
-                    "⚠️ Low confidence detection - no dart score could be verified.".to_string()
+                    "Low confidence detection - no dart score could be verified.".to_string()
                 }
             }));
         }

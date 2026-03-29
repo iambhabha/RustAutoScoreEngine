@@ -363,15 +363,15 @@
     <main>
         <section class="visual-area">
             <div class="mode-selector" style="display: flex; gap: 1rem; margin-bottom: 0.5rem;">
-                <button id="mode-upload" class="mode-btn active">📁 Upload Image</button>
-                <button id="mode-camera" class="mode-btn">🎥 Live Camera</button>
+                <button id="mode-upload" class="mode-btn active">Upload Image</button>
+                <button id="mode-camera" class="mode-btn">Live Camera</button>
             </div>
             <div class="upload-container" id="drop-zone">
                 <div class="scanline" id="scanline"></div>
 
                 <!-- Upload State -->
                 <div id="initial-state">
-                    <div class="upload-icon">💠</div>
+                    <div class="upload-icon"></div>
                     <div class="upload-text">Initialize Vision System</div>
                     <div class="upload-subtext">Drop board imagery or click to browse</div>
                 </div>
@@ -617,10 +617,10 @@
 
             const calStatus = document.getElementById('cal-status');
             if (data.is_calibrated) {
-                calStatus.innerText = "VERIFIED ✅";
+                calStatus.innerText = "VERIFIED";
                 calStatus.style.color = "var(--primary)";
             } else {
-                calStatus.innerText = "FAILED ❌";
+                calStatus.innerText = "FAILED";
                 calStatus.style.color = "var(--accent)";
             }
 
