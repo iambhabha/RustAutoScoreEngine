@@ -1,4 +1,5 @@
 pub mod args;
+pub mod config;
 pub mod data;
 pub mod inference;
 pub mod loss;

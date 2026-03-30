@@ -1,7 +1,8 @@
 use crate::data::{DartBatcher, DartDataset};
 use crate::loss::diou_loss;
 use crate::model::DartVisionModel;
-use burn::data::dataset::Dataset; // Add this trait to scope
+use crate::config as cfg; // Centralized Config
+use burn::data::dataset::Dataset; 
 use burn::module::Module;
 use burn::optim::{AdamConfig, GradientsParams, Optimizer};
 use burn::prelude::*;
@@ -20,10 +21,10 @@ pub fn train<B: AutodiffBackend>(device: Device<B>, dataset_path: &str, config: 
 
     // 1.5 Load existing weights if they exist (RESUME)
     let recorder = BinFileRecorder::<FullPrecisionSettings>::default();
-    let weights_path = "model_weights.bin";
-    if std::path::Path::new(weights_path).exists() {
+    let weights_path = format!("{}.bin", cfg::MODEL_WEIGHTS_FILE);
+    if std::path::Path::new(&weights_path).exists() {
         println!("🚀 Loading existing weights from {}...", weights_path);
-        let record = Recorder::load(&recorder, "model_weights".into(), &device)
+        let record = Recorder::load(&recorder, cfg::MODEL_WEIGHTS_FILE.into(), &device)
             .expect("Failed to load weights");
         model = model.load_record(record);
     }
@@ -38,25 +39,41 @@ pub fn train<B: AutodiffBackend>(device: Device<B>, dataset_path: &str, config: 
     let batcher = DartBatcher::new(device.clone());
 
     // 4. Create DataLoader
-    println!("📦 Initializing DataLoader (Workers: 4)...");
+    println!("📦 Initializing DataLoader (Workers: {})...", cfg::NUM_WORKERS);
     let dataloader = burn::data::dataloader::DataLoaderBuilder::new(batcher)
         .batch_size(config.batch_size)
         .shuffle(42)
-        .num_workers(4)
+        .num_workers(cfg::NUM_WORKERS) 
         .build(dataset);
 
     // 5. Training Loop
     println!(
-        "📈 Running FULL Training Loop (Epochs: {})...",
+        "📈 Running ULTRA Training Loop (Epochs: {})...",
         config.num_epochs
     );
 
-    // Using a simple loop state for ownership safety
     let mut current_model = model;
 
     for epoch in 1..=config.num_epochs {
-        let mut model_inner = current_model; // Move into epoch
+        let mut model_inner = current_model; 
         let mut batch_count = 0;
+
+        // --- 🎯 TRIPLE DECAY SCHEDULE (Using cfg values for relative epochs) ---
+        let epoch_lr = if epoch <= cfg::WARMUP_EPOCHS {
+            config.lr * (epoch as f64 / cfg::WARMUP_EPOCHS as f64) // 1. Warmup
+        } else if epoch > (config.num_epochs * 90 / 100) {
+            config.lr * 0.01 // 4. Ultra Fine-tune
+        } else if epoch > (config.num_epochs * 75 / 100) {
+            config.lr * 0.1  // 3. Deep Fine-tune
+        } else if epoch > (config.num_epochs * 50 / 100) {
+            config.lr * 0.5  // 2. Mid Decay
+        } else {
+            config.lr        // Stable Mode
+        };
+
+        if epoch <= cfg::WARMUP_EPOCHS || epoch % 10 == 0 {
+            println!("   ⚡ [Training Info] Epoch {}: Current learning rate is {:.8}", epoch, epoch_lr);
+        }
 
         for batch in dataloader.iter() {
             // Forward Pass
@@ -66,8 +83,7 @@ pub fn train<B: AutodiffBackend>(device: Device<B>, dataset_path: &str, config: 
             let loss = diou_loss(out16, batch.targets);
             batch_count += 1;
 
-            // Print every 20 batches — use detach() to avoid cloning the full autodiff graph
-            if batch_count % 20 == 0 || batch_count == 1 {
+            if batch_count % 100 == 0 || batch_count == 1 {
                 let loss_val = loss.clone().detach().into_scalar();
                 println!(
                     "   [Epoch {}] Batch {: >3} | Loss: {:.6}",
@@ -80,28 +96,23 @@ pub fn train<B: AutodiffBackend>(device: Device<B>, dataset_path: &str, config: 
             // Backward & Optimization step
             let grads = loss.backward();
             let grads_params = GradientsParams::from_grads(grads, &model_inner);
-            model_inner = optim.step(config.lr, model_inner, grads_params);
+            model_inner = optim.step(epoch_lr, model_inner, grads_params);
 
-            // 5.5 Periodic Save (every 100 batches and Batch 1)
-            if batch_count % 100 == 0 || batch_count == 1 {
+            // 5.5 Checkpoint (Using SAVE_INTERVAL_BATCHES from config)
+            if batch_count % cfg::SAVE_INTERVAL_BATCHES == 0 || batch_count == 1 {
                 model_inner.clone()
-                    .save_file("model_weights", &recorder)
+                    .save_file(cfg::MODEL_WEIGHTS_FILE, &recorder)
                     .ok();
-                if batch_count == 1 {
-                    println!("🚀 [Checkpoint] Initial weights saved at Batch 1.");
-                } else {
-                    println!("🚀 [Checkpoint] Saved at Batch {}.", batch_count);
-                }
             }
         }
 
         // 6. SAVE after EACH Epoch
         model_inner
             .clone()
-            .save_file("model_weights", &recorder)
+            .save_file(cfg::MODEL_WEIGHTS_FILE, &recorder)
             .expect("Failed to save weights");
         println!("✅ Checkpoint saved: Epoch {} complete.", epoch);
 
-        current_model = model_inner; // Move back out for next epoch
+        current_model = model_inner; 
     }
 }

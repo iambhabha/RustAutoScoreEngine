@@ -97,6 +97,8 @@ Ensure `dataset/labels.json` exists with mappings for:
 cargo run --release -- train
 ```
 > 💡 **VRAM Optimization:** The engine is optimized for as little as **3.3GB VRAM**, making it training-ready for consumer laptops and GPUs.
+>
+> ⚙️ **GPU Tuning:** All performance and accuracy settings are now in [src/config.rs](src/config.rs). See [SETTINGS.md](SETTINGS.md) for detailed instructions on how to optimize for 100GB vs RTX 5080 VRAM.
 
 ---
 
@@ -118,7 +120,9 @@ RustAutoScoreEngine/
 │   └── labels.json        ← Ground Truth Metadata
 ├── model_weights.bin      ← Trained Neural Weights
 ├── Dockerfile             ← Hugging Face Space Config
-└── Cargo.toml             ← Dependencies & Build Config
+├── Cargo.toml             ← Dependencies & Build Config
+├── SETTINGS.md            ← GPU & Training Optimization Guide
+└── README.md              ← Project Documentation
 ```
 
 ---
