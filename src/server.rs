@@ -14,6 +14,8 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::sync::{mpsc, oneshot};
 use tower_http::cors::CorsLayer;
+use axum_server::tls_rustls::RustlsConfig;
+use std::path::PathBuf;
 
 #[derive(Debug)]
 struct PredictResult {
@@ -28,6 +30,20 @@ struct PredictRequest {
     response_tx: oneshot::Sender<PredictResult>,
 }
 
+async fn ensure_certs() -> RustlsConfig {
+    let cert_path = PathBuf::from("cert.pem");
+    let key_path = PathBuf::from("key.pem");
+
+    if !cert_path.exists() || !key_path.exists() {
+        println!("[SSL] Generating self-signed certificates for local HTTPS...");
+        let cert = rcgen::generate_simple_self_signed(vec!["localhost".to_string(), "127.0.0.1".into()]).unwrap();
+        std::fs::write(&cert_path, cert.cert.pem()).unwrap();
+        std::fs::write(&key_path, cert.key_pair.serialize_pem()).unwrap();
+    }
+
+    RustlsConfig::from_pem_file(cert_path, key_path).await.unwrap()
+}
+
 pub async fn start_gui(device: WgpuDevice) {
     let port = std::env::var("PORT")
         .unwrap_or_else(|_| "8080".to_string())
@@ -35,7 +51,9 @@ pub async fn start_gui(device: WgpuDevice) {
         .unwrap_or(8080);
     let addr = SocketAddr::from(([0, 0, 0, 0], port));
 
-    println!("[DartVision-GUI] Starting on http://localhost:{}", port);
+    let config = ensure_certs().await;
+
+    println!("[DartVision-GUI] Starting on HTTPS -> https://localhost:{}", port);
 
     // Attempt to print relevant local IP addresses for remote access
     if let Ok(interfaces) = local_ip_address::list_afinet_netifas() {
@@ -45,9 +63,9 @@ pub async fn start_gui(device: WgpuDevice) {
             if !ip.is_loopback()
                 && ip.is_ipv4()
                 && !ip_str.starts_with("169.254")
-                && (name.contains("Wi-Fi") || name.contains("Wireless"))
+                && (name.contains("Wi-Fi") || name.contains("Wireless") || name.contains("en0"))
             {
-                println!("[Remote Access] http://{}:{} ({})", ip, port, name);
+                println!("[Remote Access] https://{}:{} ({})", ip, port, name);
             }
         }
     }
@@ -70,7 +88,20 @@ pub async fn start_gui(device: WgpuDevice) {
         while let Some(req) = rx.blocking_recv() {
             let start_time = std::time::Instant::now();
 
-            let img = image::load_from_memory(&req.image_bytes).unwrap();
+            // Store the raw capture for user review if captures/ exists
+            let timestamp = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_secs();
+            let _ = std::fs::write(format!("captures/sync_{}.jpg", timestamp), &req.image_bytes);
+
+            let img = match image::load_from_memory(&req.image_bytes) {
+                Ok(i) => i,
+                Err(e) => {
+                    println!("[DartVision] Failed to load image: {:?}", e);
+                    continue;
+                }
+            };
             let resized = img.resize_exact(800, 800, image::imageops::FilterType::Triangle);
             let pixels: Vec<f32> = resized
                 .to_rgb8()
@@ -364,8 +395,11 @@ pub async fn start_gui(device: WgpuDevice) {
         .layer(DefaultBodyLimit::max(10 * 1024 * 1024))
         .layer(CorsLayer::permissive());
 
-    let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
-    axum::serve(listener, app).await.unwrap();
+    let _ = tokio::net::TcpListener::bind(addr).await.unwrap();
+    axum_server::bind_rustls(addr, config)
+        .serve(app.into_make_service())
+        .await
+        .unwrap();
 }
 
 async fn predict_handler(
