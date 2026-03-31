@@ -38,11 +38,28 @@ pub fn calculate_dart_score(
     dart_pt: &[f32; 2],
     config: &ScoringConfig,
 ) -> (i32, String) {
-    // 1. Calculate Center (Average of 4 calibration points)
-    let cx = cal_pts.iter().map(|p| p[0]).sum::<f32>() / 4.0;
-    let cy = cal_pts.iter().map(|p| p[1]).sum::<f32>() / 4.0;
+    // 1. Calculate Center (Intersection of diagonals for better perspective handling)
+    // Points: 0:TL, 1:TR, 2:BR, 3:BL
+    let p1 = cal_pts[0]; // TL
+    let p2 = cal_pts[1]; // TR
+    let p3 = cal_pts[2]; // BR
+    let p4 = cal_pts[3]; // BL
 
-    // 2. Calculate average radius to boundary (doubles wire)
+    // Line 1: p1 -> p3, Line 2: p2 -> p4
+    // Using line intersection formula
+    let den = (p1[0] - p3[0]) * (p2[1] - p4[1]) - (p1[1] - p3[1]) * (p2[0] - p4[0]);
+    
+    let (cx, cy) = if den.abs() > 1e-6 {
+        let t = ((p1[0] - p2[0]) * (p2[1] - p4[1]) - (p1[1] - p2[1]) * (p2[0] - p4[0])) / den;
+        (p1[0] + t * (p3[0] - p1[0]), p1[1] + t * (p3[1] - p1[1]))
+    } else {
+        // Fallback to average if parallel (shouldn't happen for a board)
+        (cal_pts.iter().map(|p| p[0]).sum::<f32>() / 4.0, 
+         cal_pts.iter().map(|p| p[1]).sum::<f32>() / 4.0)
+    };
+
+    // 2. Calculate average radius to boundary
+    // We use the distance from center to each calibration point
     let avg_r_px = cal_pts
         .iter()
         .map(|p| ((p[0] - cx).powi(2) + (p[1] - cy).powi(2)).sqrt())

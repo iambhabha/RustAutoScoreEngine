@@ -385,9 +385,22 @@
                     style="display: none; width: 100%; height: 100%; justify-content: center; align-items: center; position: relative;">
                     <video id="webcam-feed" autoplay playsinline
                         style="width: 100%; height: 100%; object-fit: cover; border-radius: 24px;"></video>
+                    
+                    <!-- Alignment Guide Overlay -->
+                    <div id="alignment-guide" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; display: flex; align-items: center; justify-content: center;">
+                        <div style="width: 80%; height: 80%; border: 2px dashed rgba(0, 255, 136, 0.3); border-radius: 50%; box-shadow: 0 0 0 1000px rgba(0,0,0,0.1);"></div>
+                        <div style="position: absolute; width: 40px; height: 1px; background: rgba(0, 255, 136, 0.5);"></div>
+                        <div style="position: absolute; width: 1px; height: 40px; background: rgba(0, 255, 136, 0.5);"></div>
+                    </div>
+
                     <div id="camera-overlay"
                         style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;">
                     </div>
+
+                    <!-- Manual Manual Capture Overlay -->
+                    <button id="manual-capture" style="position: absolute; bottom: 2rem; right: 2rem; background: var(--primary); color: #000; border: none; padding: 12px 24px; border-radius: 30px; font-weight: 800; cursor: pointer; box-shadow: 0 10px 30px rgba(0, 255, 136, 0.3); z-index: 100;">CAPTURE FRAME</button>
+                    
+                    <div style="position: absolute; top: 2rem; width: 100%; text-align: center; color: var(--primary); font-weight: 600; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 2px; text-shadow: 0 2px 4px rgba(0,0,0,0.5);">Align Board Center</div>
                 </div>
 
                 <!-- Preview State -->
@@ -421,7 +434,13 @@
             </div>
             <div class="stat-card">
                 <div class="stat-label">Detection Result</div>
-                <div class="stat-value" id="result-text" style="font-size: 1.1rem; opacity: 0.8;">No Frame Captured
+                <div id="result-text" style="font-size: 1.1rem; opacity: 0.8;">No Frame Captured</div>
+            </div>
+
+            <div class="stat-card" style="display: flex; flex-direction: column; gap: 1rem;">
+                <div class="stat-label">Session Captures</div>
+                <div id="capture-history" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.5rem; max-height: 250px; overflow-y: auto; padding-right: 5px;">
+                    <div style="grid-column: span 2; color: #8892b0; font-size: 0.8rem; text-align: center; padding: 1rem;">No captures yet</div>
                 </div>
             </div>
         </aside>
@@ -451,6 +470,33 @@
             background: rgba(255, 255, 255, 0.1);
             color: #fff;
         }
+
+        .history-item {
+            position: relative;
+            border-radius: 12px;
+            overflow: hidden;
+            border: 1px solid var(--glass-border);
+            aspect-ratio: 1;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+
+        .history-item:hover {
+            border-color: var(--primary);
+            transform: scale(1.05);
+        }
+
+        .history-info {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: rgba(0, 0, 0, 0.7);
+            color: var(--primary);
+            font-size: 0.6rem;
+            padding: 4px;
+            text-align: center;
+        }
     </style>
 
     <script>
@@ -466,11 +512,14 @@
         const scanline = document.getElementById('scanline');
         const modeUpload = document.getElementById('mode-upload');
         const modeCamera = document.getElementById('mode-camera');
+        const manualCapture = document.getElementById('manual-capture');
         const captureCanvas = document.getElementById('capture-canvas');
+        const historyContainer = document.getElementById('capture-history');
 
         let isLive = false;
         let stream = null;
         let captureInterval = null;
+        let captures = [];
 
         modeUpload.onclick = () => {
             stopCamera();
@@ -491,6 +540,11 @@
             startCamera();
         };
 
+        manualCapture.onclick = (e) => {
+            e.stopPropagation();
+            captureAndPredict(true);
+        };
+
         dropZone.onclick = () => {
             if (!isLive) fileInput.click();
         }
@@ -508,23 +562,23 @@
 
         async function startCamera() {
             try {
+                // High-resolution request for better calibration
                 stream = await navigator.mediaDevices.getUserMedia({
                     video: { 
                         facingMode: 'environment', 
-                        width: { ideal: 800 }, 
-                        height: { ideal: 800 },
-                        aspectRatio: { exact: 1 }
+                        width: { ideal: 1920 },
+                        height: { ideal: 1080 },
+                        frameRate: { ideal: 30 }
                     }
                 });
                 video.srcObject = stream;
                 cameraState.style.display = 'flex';
 
-                // Switch svg overlay for live mode
                 previewWrapper.style.display = 'flex';
                 previewImg.style.display = 'none';
 
                 startCaptureLoop();
-                document.getElementById('status-text').innerText = 'Camera Linked';
+                document.getElementById('status-text').innerText = 'Vision Link established';
                 document.getElementById('status-text').style.color = 'var(--primary)';
             } catch (err) {
                 console.error("Camera error:", err);
@@ -553,25 +607,27 @@
             }, 1000); // 1 frame per second to be safe
         }
 
-        async function captureAndPredict() {
+        async function captureAndPredict(isManual = false) {
             if (video.videoWidth === 0) return;
 
             const context = captureCanvas.getContext('2d');
             captureCanvas.width = 800;
             captureCanvas.height = 800;
             
-            // Center crop to 800x800
-            const size = Math.min(video.videoWidth, video.videoHeight);
-            const sx = (video.videoWidth - size) / 2;
-            const sy = (video.videoHeight - size) / 2;
+            const videoW = video.videoWidth;
+            const videoH = video.videoHeight;
+            const size = Math.min(videoW, videoH);
+            const sx = (videoW - size) / 2;
+            const sy = (videoH - size) / 2;
             
+            context.imageSmoothingEnabled = true;
+            context.imageSmoothingQuality = 'high';
             context.drawImage(video, sx, sy, size, size, 0, 0, 800, 800);
 
-            const blob = await new Promise(resolve => captureCanvas.toBlob(resolve, 'image/jpeg', 0.95));
+            const blob = await new Promise(resolve => captureCanvas.toBlob(resolve, 'image/jpeg', 0.98));
             const file = new File([blob], "capture.jpg", { type: 'image/jpeg' });
 
-            // Re-use logic
-            await runInference(file, false);
+            await runInference(file, isManual);
         }
 
         async function handleFile(file) {
@@ -592,8 +648,8 @@
             if (showScan) {
                 spinner.style.display = 'block';
                 scanline.style.display = 'block';
-                scanline.style.animation = 'scan 2s linear infinite';
-                document.getElementById('status-text').innerText = 'Neural Processing...';
+                scanline.style.animation = 'scan 2.5s linear infinite';
+                document.getElementById('status-text').innerText = 'Neural Sync...';
                 document.getElementById('status-text').style.color = 'var(--secondary)';
             }
 
@@ -611,16 +667,56 @@
 
                 if (data.status === 'success') {
                     if (showScan) {
-                        document.getElementById('status-text').innerText = 'Analysis Complete';
+                        document.getElementById('status-text').innerText = 'Deep Analysis Ready';
                         document.getElementById('status-text').style.color = 'var(--primary)';
                     }
                     updateUI(data);
                     const targetEl = isLive ? video : previewImg;
                     drawKeypoints(data.keypoints, data.confidences, data.scores, targetEl);
+                    
+                    // ALWAYS show in history if manual capture or if we found darts
+                    if (showScan || (data.scores && data.scores.length > 0)) {
+                        addToHistory(file, data.scores[0], data.is_calibrated);
+                    }
                 }
             } catch (err) {
                 console.error("Inference error:", err);
             }
+        }
+
+        function addToHistory(file, score, isCalibrated) {
+            const url = URL.createObjectURL(file);
+            const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            captures.unshift({ url, score: score || "Empty", time, isCalibrated });
+            if (captures.length > 8) captures.pop();
+            renderHistory();
+        }
+
+        function renderHistory() {
+            if (captures.length === 0) return;
+            historyContainer.innerHTML = '';
+            captures.forEach((c) => {
+                const div = document.createElement('div');
+                div.className = 'history-item';
+                const borderColor = c.isCalibrated ? 'var(--primary)' : 'var(--accent)';
+                div.style.borderColor = borderColor;
+
+                div.innerHTML = `
+                    <img src="${c.url}" style="width: 100%; height: 100%; object-fit: cover;">
+                    <div class="history-info" style="color: ${borderColor}">${c.score} @ ${c.time}</div>
+                `;
+                div.onclick = () => {
+                    previewImg.src = c.url;
+                    previewWrapper.style.display = 'flex';
+                    initialState.style.display = 'none';
+                    cameraState.style.display = 'none';
+                    isLive = false;
+                    stopCamera();
+                    modeUpload.classList.add('active');
+                    modeCamera.classList.remove('active');
+                };
+                historyContainer.appendChild(div);
+            });
         }
 
         function updateUI(data) {
@@ -630,14 +726,14 @@
 
             const calStatus = document.getElementById('cal-status');
             if (data.is_calibrated) {
-                calStatus.innerText = "VERIFIED";
+                calStatus.innerText = "ALIGNED";
                 calStatus.style.color = "var(--primary)";
             } else {
-                calStatus.innerText = "FAILED";
+                calStatus.innerText = "OFF-SYNC";
                 calStatus.style.color = "var(--accent)";
             }
 
-            let resultHtml = `<div style="margin: 1.5rem 0 1rem 0; font-size: 0.95rem; line-height: 1.6; color: rgba(255,255,255,0.9);">${data.message}</div>`;
+            let resultHtml = `<div style="margin: 1rem 0; font-size: 0.95rem; line-height: 1.6; color: rgba(255,255,255,0.9);">${data.message}</div>`;
             if (data.keypoints && data.keypoints.length >= 8) {
                 const names = ["Cal 1", "Cal 2", "Cal 3", "Cal 4", "Dart"];
                 resultHtml += `<div style="font-size: 0.75rem; color: #8892b0; margin: 1.5rem 0 0.8rem 0; letter-spacing: 2px; text-transform: uppercase;">MAPPED DATA</div>`;
