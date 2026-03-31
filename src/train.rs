@@ -12,6 +12,13 @@ use burn::tensor::cast::ToElement;
 use rand::seq::SliceRandom;
 use rand::thread_rng;
 use std::sync::Arc;
+use std::fs;
+use serde::{Deserialize, Serialize};
+
+#[derive(Serialize, Deserialize)]
+struct EpochState {
+    current_epoch: usize,
+}
 
 pub struct TrainingConfig {
     pub num_epochs: usize,
@@ -83,8 +90,24 @@ pub fn train<B: AutodiffBackend>(device: Device<B>, dataset_path: &str, config: 
     );
 
     let mut current_model = model;
+    
+    // 5.1 Determine Start Epoch (RESUME logic)
+    let epoch_file = format!("{}.epoch.json", cfg::MODEL_WEIGHTS_FILE);
+    let start_epoch = if fs::metadata(&epoch_file).is_ok() {
+        let content = fs::read_to_string(&epoch_file).unwrap_or_default();
+        let state: EpochState = serde_json::from_str(&content).unwrap_or(EpochState { current_epoch: 1 });
+        println!("🕒 Resuming from Epoch {}...", state.current_epoch);
+        state.current_epoch
+    } else {
+        1
+    };
 
-    for epoch in 1..=config.num_epochs {
+    if start_epoch > config.num_epochs {
+        println!("✅ Training already complete (Final Epoch: {} Reached).", start_epoch - 1);
+        return;
+    }
+
+    for epoch in start_epoch..=config.num_epochs {
         let mut model_inner = current_model; 
         let mut batch_count = 0;
         let mut epoch_loss = 0.0;
@@ -133,13 +156,12 @@ pub fn train<B: AutodiffBackend>(device: Device<B>, dataset_path: &str, config: 
 
             // 5.5 Checkpoint
             if batch_count % cfg::SAVE_INTERVAL_BATCHES == 0 {
-                model_inner.clone()
-                    .save_file(cfg::MODEL_WEIGHTS_FILE, &recorder)
-                    .ok();
+                model_inner.clone().save_file(cfg::MODEL_WEIGHTS_FILE, &recorder).ok();
             }
         }
 
         // --- 🏁 VALIDATION AFTER EPOCH ---
+        // We clone here to ensure the training model isn't moved.
         let val_loss = validate(model_inner.clone(), &val_dataloader);
         let avg_train_loss = epoch_loss / batch_count as f32;
 
@@ -153,6 +175,14 @@ pub fn train<B: AutodiffBackend>(device: Device<B>, dataset_path: &str, config: 
             .clone()
             .save_file(cfg::MODEL_WEIGHTS_FILE, &recorder)
             .expect("Failed to save weights");
+
+        // 6.1 Save Epoch State
+        let next_epoch = epoch + 1;
+        let epoch_state = EpochState { current_epoch: next_epoch };
+        if let Ok(json) = serde_json::to_string(&epoch_state) {
+            fs::write(&epoch_file, json).ok();
+        }
+
         println!("✅ Checkpoint saved: Epoch {} complete.", epoch);
 
         current_model = model_inner; 
