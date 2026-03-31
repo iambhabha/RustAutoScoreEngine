@@ -12,7 +12,7 @@ pub const GPU_DEVICE_ID: usize = 0;
 /// - 4: Standard Gaming PC
 /// - 8-12: High-end Gaming PC (RTX 5080)
 /// - 24-32: Server-grade hardware (H100/A100)
-pub const NUM_WORKERS: usize = 24; // Currently set for 100GB H100 Server
+pub const NUM_WORKERS: usize = 4; // Reduced to 4 for stability debugging
 
 // --- 🏋️ TRAINING HYPERPARAMETERS (For 99.994% Accuracy) ---
 
@@ -25,7 +25,7 @@ pub const NUM_EPOCHS: usize = 200;
 /// - 1-4: Low-end GPUs (4GB VRAM)
 /// - 16-32: RTX 3080 / 4080 / 5080 (16-24GB VRAM)
 /// - 128-512: A100 / H100 (40GB-100GB VRAM)
-pub const BATCH_SIZE: usize = 256; // Currently set for 100GB Server GPU
+pub const BATCH_SIZE: usize = 1; // Reduced to 1 to debug the 71GB allocation error
 
 /// Base Learning Rate
 pub const LEARNING_RATE: f64 = 1e-3;
@@ -59,3 +59,8 @@ pub const MODEL_WEIGHTS_FILE: &str = "model_weights";
 /// - 100: Save frequently (Safe)
 /// - 500: Save less often (Fastest throughput on high-end GPUs)
 pub const SAVE_INTERVAL_BATCHES: usize = 500;
+
+// --- 📊 VALIDATION SETTINGS ---
+
+/// Percentage of dataset to use for validation (0.1 = 10%)
+pub const VALIDATION_SPLIT: f64 = 0.1;

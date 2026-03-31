@@ -1,10 +1,10 @@
 use burn::backend::wgpu::WgpuDevice;
 use burn::backend::Wgpu;
-use rust_auto_score_engine::args::{AppArgs, Command};
-use rust_auto_score_engine::server::start_gui;
-use rust_auto_score_engine::tests::test_model;
-use rust_auto_score_engine::train::{train, TrainingConfig};
-use rust_auto_score_engine::config as cfg; // Centralized Config
+use lib_rust_auto_score_engine::args::{AppArgs, Command};
+use lib_rust_auto_score_engine::server::start_gui;
+use lib_rust_auto_score_engine::tests::test_model;
+use lib_rust_auto_score_engine::train::{train, TrainingConfig};
+use lib_rust_auto_score_engine::config as cfg; // Centralized Config
 
 fn main() {
     let app_args = AppArgs::parse();
