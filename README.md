@@ -102,17 +102,44 @@ cargo run --release -- train
 
 ---
 
+## 🤖 Auto-Labeling Ecosystem (AI-Powered Generation)
+
+Need to generate a large labeled dataset quickly? Use our built-in auto-labelers to detect corners and darts automatically from raw images.
+
+### 🐍 Python Auto-Labeler (YOLOv8 Based)
+This uses a pre-trained `model.pt` to generate `labels_auto.json` and high-quality visuals.
+```bash
+python tools/labeler_v8.py
+```
+- **Clean Visuals:** Draws sharp 12x12 boxes with color-coded labels (C1-C4, D).
+- **Customizable:** Adjust box size or colors in the `generate()` function using OpenCV.
+
+### 🦀 Rust Auto-Labeler (ONNX Based)
+A pure Rust implementation for ultra-fast, dependency-free dataset labeling using `model.onnx`.
+```bash
+cargo run --bin autolabel
+```
+- **Pixel-Art Labels:** Custom "D" and "C1-C4" renderer for clear verification without font dependencies.
+- **Fixed Boxes:** Uses synchronized 12x12 boxes to match the Python output exactly.
+- **Legend:** Prints a color guide (Red=C1, Green=C2, etc.) directly in your terminal.
+
+---
+
 ## 📁 Project Structure
 
 ```text
 RustAutoScoreEngine/
 ├── src/
 │   ├── main.rs            ← Entry point (CLI Handler)
+│   ├── bin/
+│   │   └── autolabel.rs   ← Rust Auto-Labeler (ONNX)
 │   ├── model.rs           ← YOLOv4-tiny (Burn Implementation)
 │   ├── server.rs          ← Axum Web Server & API
 │   ├── train.rs           ← Training Loop & Optimizers
 │   ├── scoring.rs         ← BDO Standard Mathematics
 │   └── wasm_bridge.rs     ← Browser Bindings
+├── tools/
+│   └── labeler_v8.py      ← Python Auto-Labeler (YOLOv8)
 ├── static/
 │   └── index.html         ← Professional Dashboard UI
 ├── dataset/
