@@ -8,6 +8,7 @@ pub mod scoring;
 pub mod server;
 pub mod tests;
 pub mod train;
+pub mod yolo_ort;
 
 // WASM Module for the Web Build
 #[cfg(target_family = "wasm")]

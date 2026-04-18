@@ -11,6 +11,7 @@ use burn::tensor::backend::{AutodiffBackend, Backend};
 use burn::tensor::cast::ToElement;
 use rand::seq::SliceRandom;
 use rand::thread_rng;
+use indicatif::{ProgressBar, ProgressStyle, MultiProgress};
 use std::sync::Arc;
 use std::fs;
 use serde::{Deserialize, Serialize};
@@ -129,6 +130,13 @@ pub fn train<B: AutodiffBackend>(device: Device<B>, dataset_path: &str, config: 
             println!("   ⚡ [Training Info] Epoch {}: Current learning rate is {:.8}", epoch, epoch_lr);
         }
 
+        let num_batches = (train_count + config.batch_size - 1) / config.batch_size;
+        let pb = ProgressBar::new(num_batches as u64);
+        pb.set_style(ProgressStyle::default_bar()
+            .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {pos}/{len} ({eta}) Batch Loss: {msg}")
+            .expect("Progress bar template error")
+            .progress_chars("#>-"));
+
         for batch in train_dataloader.iter() {
             // Forward Pass
             let (out16, _) = model_inner.forward(batch.images);
@@ -140,14 +148,9 @@ pub fn train<B: AutodiffBackend>(device: Device<B>, dataset_path: &str, config: 
             let loss_val = loss.clone().detach().into_scalar().to_f32();
             epoch_loss += loss_val;
 
-            if batch_count % 100 == 0 || batch_count == 1 {
-                println!(
-                    "   [Epoch {}] Batch {: >3} | Loss: {:.6}",
-                    epoch,
-                    batch_count,
-                    loss_val
-                );
-            }
+            // Update Progress Bar message
+            pb.set_position(batch_count as u64);
+            pb.set_message(format!("{:.6}", loss_val));
 
             // Backward & Optimization step
             let grads = loss.backward();
@@ -159,6 +162,7 @@ pub fn train<B: AutodiffBackend>(device: Device<B>, dataset_path: &str, config: 
                 model_inner.clone().save_file(cfg::MODEL_WEIGHTS_FILE, &recorder).ok();
             }
         }
+        pb.finish_with_message("Batch cycle complete");
 
         // --- 🏁 VALIDATION AFTER EPOCH ---
         // We clone here to ensure the training model isn't moved.

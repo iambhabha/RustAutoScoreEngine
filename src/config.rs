@@ -25,7 +25,7 @@ pub const NUM_EPOCHS: usize = 200;
 /// - 1-4: Low-end GPUs (4GB VRAM)
 /// - 16-32: RTX 3080 / 4080 / 5080 (16-24GB VRAM)
 /// - 128-512: A100 / H100 (40GB-100GB VRAM)
-pub const BATCH_SIZE: usize = 1; // Reduced to 1 to debug the 71GB allocation error
+pub const BATCH_SIZE: usize = 16; // Optimized for RTX 5080 (16-24GB VRAM)
 
 /// Base Learning Rate
 pub const LEARNING_RATE: f64 = 1e-3;
